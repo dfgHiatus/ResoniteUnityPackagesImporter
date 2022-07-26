@@ -24,6 +24,23 @@ namespace UnityPackageImporter
         public static ModConfiguration config;
         private static string CachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
         private static UnityPackageExtractor extractor = new UnityPackageExtractor();
+        
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importText = new ModConfigurationKey<bool>("importText", "Import Text", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importTexture = new ModConfigurationKey<bool>("importTexture", "Import Textures", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importDocument = new ModConfigurationKey<bool>("importDocument", "Import Documents", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importMesh = new ModConfigurationKey<bool>("importMesh", "Import Mesh", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importPointCloud = new ModConfigurationKey<bool>("importPointCloud", "Import Point Clouds", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importAudio = new ModConfigurationKey<bool>("importAudio", "Import Audio", () => true);
+        [AutoRegisterConfigKey]
+        public static ModConfigurationKey<bool> importFont = new ModConfigurationKey<bool>("importFont", "Import Fonts", () => true);
+        [AutoRegisterConfigKey]
+        public static ModConfigurationKey<bool> importVideo = new ModConfigurationKey<bool>("importVideo", "Import Videos", () => true);
 
         public override void OnEngineInit()
         {
@@ -134,8 +151,43 @@ namespace UnityPackageImporter
 
         private static bool shouldImportFile(string file)
         {
-            var fileExt = Path.GetExtension(file);
-            return !UnityPackageExtractor.invalidFileExtensions.Contains(fileExt);
+            var fileExtension = Path.GetExtension(file);
+            if (config.GetValue(importText) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Text)
+            {
+                return true;
+            }
+            else if (config.GetValue(importTexture) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Texture)
+            {
+                return true;
+            }
+            else if (config.GetValue(importDocument) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Document)
+            {
+                return true;
+            }
+            else if (config.GetValue(importMesh) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Model)
+            {
+                return true;
+            }
+            else if (config.GetValue(importPointCloud) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.PointCloud)
+            {
+                return true;
+            }
+            else if (config.GetValue(importAudio) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Audio)
+            {
+                return true;
+            }
+            else if (config.GetValue(importFont) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Font)
+            {
+                return true;
+            }
+            else if (config.GetValue(importVideo) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Video)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 
