@@ -27,6 +27,7 @@ namespace UnityPackageImporter
         {
             new Harmony("net.dfgHiatus.UnityPackageImporter").PatchAll();
             config = GetConfiguration();
+            Directory.CreateDirectory(CachePath);
         }
         public static string[] DecomposeUnityPackages(string[] files)
         {
