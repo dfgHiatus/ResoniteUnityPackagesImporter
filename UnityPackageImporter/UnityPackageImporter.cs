@@ -24,6 +24,23 @@ namespace UnityPackageImporter
         public static ModConfiguration config;
         private static string CachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
         private static UnityPackageExtractor extractor = new UnityPackageExtractor();
+        
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importText = new ModConfigurationKey<bool>("importText", "Import Text", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importTexture = new ModConfigurationKey<bool>("importTexture", "Import Textures", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importDocument = new ModConfigurationKey<bool>("importDocument", "Import Documents", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importMesh = new ModConfigurationKey<bool>("importMesh", "Import Mesh", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importPointCloud = new ModConfigurationKey<bool>("importPointCloud", "Import Point Clouds", () => true);
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importAudio = new ModConfigurationKey<bool>("importAudio", "Import Audio", () => true);
+        [AutoRegisterConfigKey]
+        public static ModConfigurationKey<bool> importFont = new ModConfigurationKey<bool>("importFont", "Import Fonts", () => true);
+        [AutoRegisterConfigKey]
+        public static ModConfigurationKey<bool> importVideo = new ModConfigurationKey<bool>("importVideo", "Import Videos", () => true);
 
         public override void OnEngineInit()
         {
@@ -71,17 +88,6 @@ namespace UnityPackageImporter
                 var extractedPath = Path.Combine(CachePath, fileToHash[package]);
                 extractor.Unpack(package, extractedPath);
                 Msg("Unpacked");
-
-                // Delete all Files we don't want
-                var extractedfiles = Directory.GetFiles(extractedPath);
-                foreach (var file in extractedfiles)
-                {
-                    var fileExt = Path.GetExtension(file);
-                    if (UnityPackageExtractor.invalidFileExtensions.Contains(fileExt))
-                    {
-                        File.Delete(file);
-                    }
-                }
                 dirsToImport.Add(extractedPath);
             }
             return dirsToImport.ToArray();
@@ -93,7 +99,7 @@ namespace UnityPackageImporter
             return input.Any(c => c > MaxAnsiCode);
         }
 
-        [HarmonyPatch(typeof(UniversalImporter), "Import", new[] {typeof(AssetClass), typeof(IEnumerable<string>), typeof(World), typeof(float3), typeof(floatQ), typeof(bool)})]
+        [HarmonyPatch(typeof(UniversalImporter), "Import", new[] { typeof(AssetClass), typeof(IEnumerable<string>), typeof(World), typeof(float3), typeof(floatQ), typeof(bool) })]
         class UniversalImporterPatch
         {
             static bool Prefix(ref IEnumerable<string> files)
@@ -115,13 +121,13 @@ namespace UnityPackageImporter
                     }
                 }
 
-                List<string> allDirectoriesToBatchImport = new ();
+                List<string> allDirectoriesToBatchImport = new();
 
                 Msg("length of unity files " + hasUnityPackage.Count);
                 foreach (string dir in DecomposeUnityPackages(hasUnityPackage.ToArray()))
                 {
                     Msg("dir " + dir);
-                    allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories));
+                    allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories).Where(shouldImportFile).ToArray());
                 }
                 Msg("total files to import " + allDirectoriesToBatchImport.Count());
                 foreach (var item in allDirectoriesToBatchImport)
@@ -143,17 +149,59 @@ namespace UnityPackageImporter
             }
         }
 
-        //credit to delta for this method https://github.com/XDelta/
-        private static string GenerateMD5(string filepath)
+        private static bool shouldImportFile(string file)
         {
-            using (var hasher = MD5.Create())
+            var fileExtension = Path.GetExtension(file);
+            if (config.GetValue(importText) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Text)
             {
-                using (var stream = File.OpenRead(filepath))
-                {
-                    var hash = hasher.ComputeHash(stream);
-                    return BitConverter.ToString(hash).Replace("-", "");
-                }
+                return true;
+            }
+            else if (config.GetValue(importTexture) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Texture)
+            {
+                return true;
+            }
+            else if (config.GetValue(importDocument) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Document)
+            {
+                return true;
+            }
+            else if (config.GetValue(importMesh) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Model)
+            {
+                return true;
+            }
+            else if (config.GetValue(importPointCloud) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.PointCloud)
+            {
+                return true;
+            }
+            else if (config.GetValue(importAudio) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Audio)
+            {
+                return true;
+            }
+            else if (config.GetValue(importFont) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Font)
+            {
+                return true;
+            }
+            else if (config.GetValue(importVideo) == true && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Video)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
             }
         }
     }
+
+    //credit to delta for this method https://github.com/XDelta/
+    private static string GenerateMD5(string filepath)
+    {
+        using (var hasher = MD5.Create())
+        {
+            using (var stream = File.OpenRead(filepath))
+            {
+                var hash = hasher.ComputeHash(stream);
+                return BitConverter.ToString(hash).Replace("-", "");
+            }
+        }
+    }
+}
 }
