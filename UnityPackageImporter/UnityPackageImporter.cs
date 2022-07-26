@@ -24,7 +24,7 @@ namespace UnityPackageImporter
         public static ModConfiguration config;
         private static string CachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
         private static UnityPackageExtractor extractor = new UnityPackageExtractor();
-        
+
         [AutoRegisterConfigKey]
         private static ModConfigurationKey<bool> importText = new ModConfigurationKey<bool>("importText", "Import Text", () => true);
         [AutoRegisterConfigKey]
@@ -189,19 +189,17 @@ namespace UnityPackageImporter
                 return false;
             }
         }
-    }
-
-    //credit to delta for this method https://github.com/XDelta/
-    private static string GenerateMD5(string filepath)
-    {
-        using (var hasher = MD5.Create())
+        //credit to delta for this method https://github.com/XDelta/
+        private static string GenerateMD5(string filepath)
         {
-            using (var stream = File.OpenRead(filepath))
+            using (var hasher = MD5.Create())
             {
-                var hash = hasher.ComputeHash(stream);
-                return BitConverter.ToString(hash).Replace("-", "");
+                using (var stream = File.OpenRead(filepath))
+                {
+                    var hash = hasher.ComputeHash(stream);
+                    return BitConverter.ToString(hash).Replace("-", "");
+                }
             }
         }
     }
-}
 }
