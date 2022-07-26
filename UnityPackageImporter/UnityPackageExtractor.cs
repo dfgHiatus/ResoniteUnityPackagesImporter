@@ -37,6 +37,7 @@ namespace UnityPackageImporter.Extractor
             process.BeginOutputReadLine();
             process.WaitForExit();
         }
+
         private void OnOutput(object sender, DataReceivedEventArgs e)
         {
             UniLog.Log(e.Data);
