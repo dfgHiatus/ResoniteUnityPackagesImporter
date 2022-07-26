@@ -20,8 +20,10 @@ namespace UnityPackageImporter
         public override string Author => "dfgHiatus, eia485, delta";
         public override string Version => "1.0.0";
         public override string Link => "https://github.com/dfgHiatus/NeosUnityPackagesImporter";
+
         public static ModConfiguration config;
         private static string CachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
+        private static UnityPackageExtractor extractor = new UnityPackageExtractor();
 
         public override void OnEngineInit()
         {
@@ -35,7 +37,10 @@ namespace UnityPackageImporter
             foreach (string file in files)
             {
                 fileToHash.Add(file, GenerateMD5(file));
+                Msg("hash file " + file);
+                Msg("hash md5 " + GenerateMD5(file));
             }
+            Msg("Hashed");
 
             HashSet<string> dirsToImport = new();
             HashSet<string> unityPackagesToDecompress = new();
@@ -45,10 +50,12 @@ namespace UnityPackageImporter
                 if (!Directory.Exists(dir))
                 {
                     unityPackagesToDecompress.Add(element.Key);
+                    Msg("decompress " + element.Key);
                 }
                 else
                 {
                     dirsToImport.Add(dir);
+                    Msg("dirsToImport " + element.Key);
                 }
             }
 
@@ -61,18 +68,16 @@ namespace UnityPackageImporter
                     continue;
                 }
 
-                // Make a new directory for the extracted files under CachePath
-                UnityPackageExtractor extractor = new UnityPackageExtractor();
                 var extractedPath = Path.Combine(CachePath, fileToHash[package]);
                 extractor.Unpack(package, extractedPath);
-
+                Msg("Unpacked");
 
                 // Delete all Files we don't want
                 var extractedfiles = Directory.GetFiles(extractedPath);
                 foreach (var file in extractedfiles)
                 {
                     var fileExt = Path.GetExtension(file);
-                    if (!UnityPackageExtractor.validFileExtensions.Contains(fileExt))
+                    if (UnityPackageExtractor.invalidFileExtensions.Contains(fileExt))
                     {
                         File.Delete(file);
                     }
@@ -93,32 +98,47 @@ namespace UnityPackageImporter
         {
             static bool Prefix(ref IEnumerable<string> files)
             {
-                string[] hasUnityPackage = new string[] { };
-                string[] notUnityPackage = new string[] { };
+                Msg("file size " + files.Count());
+                List<string> hasUnityPackage = new();
+                List<string> notUnityPackage = new();
                 foreach (string file in files)
                 {
                     if (Path.GetExtension(file).ToLower().Equals(".unitypackage"))
                     {
-                        hasUnityPackage.AddItem(file);
+                        Msg($"hasUnityPackage.AddItem({file})");
+                        hasUnityPackage.Add(file);
                     }
                     else
                     {
-                        notUnityPackage.AddItem(file);
+                        notUnityPackage.Add(file);
+                        Msg($"notUnityPackage.AddItem({file})");
                     }
                 }
 
-                string[] allFilesToBatchImport = new string[] { };
-                foreach (string dir in DecomposeUnityPackages(hasUnityPackage))
-                {
-                    allFilesToBatchImport.AddRangeToArray(Directory.EnumerateFiles(dir).ToArray());
-                }
-                BatchFolderImporter.BatchImport(Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package import"), allFilesToBatchImport);
+                List<string> allDirectoriesToBatchImport = new ();
 
-                if (notUnityPackage.Length > 0)
+                Msg("length of unity files " + hasUnityPackage.Count);
+                foreach (string dir in DecomposeUnityPackages(hasUnityPackage.ToArray()))
+                {
+                    Msg("dir " + dir);
+                    allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories));
+                }
+                Msg("total files to import " + allDirectoriesToBatchImport.Count());
+                foreach (var item in allDirectoriesToBatchImport)
+                {
+                    Msg("Unity file - " + item);
+                }
+
+                BatchFolderImporter.BatchImport(Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package import"), allDirectoriesToBatchImport);
+                Msg("Imported");
+
+                if (notUnityPackage.Count > 0)
                 {
                     files = notUnityPackage.ToArray();
+                    Msg("notUnityPackage.Length > 0");
                     return true;
                 }
+                Msg("!notUnityPackage.Length > 0");
                 return false;
             }
         }

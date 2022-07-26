@@ -15,32 +15,28 @@ namespace UnityPackageImporter.Extractor
         private readonly static string extractor64Bit = Path.Combine("nml_mods", "unityPackageExtractor", "extractor64.exe");
         private readonly static string extractor86Bit = Path.Combine("nml_mods", "unityPackageExtractor", "extractor86.exe");
 
-        public static readonly List<string> validFileExtensions = new List<string>()
+        public static readonly List<string> invalidFileExtensions = new List<string>()
         {
-            ".jpeg",
-            ".jpg",
-            ".png",
-            ".fbx"
+            ".meta",
+            ".asmdef",
+            ".dll",
+            ".mat",
         };
 
         public void Unpack(string pathToPackage, string outputPath)
         {
             var process = new Process();
-            process.StartInfo.FileName = Environment.Is64BitOperatingSystem ? extractor64Bit : extractor86Bit;
-            process.StartInfo.Arguments = string.Join(" ", new string[] { pathToPackage, outputPath });
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.UseShellExecute = false;
+            var fileName = Environment.Is64BitOperatingSystem ? extractor64Bit : extractor86Bit;
+            process.StartInfo.FileName = fileName;
+            var args = string.Join(" ", new string[] { pathToPackage, outputPath });
+            process.StartInfo.Arguments = args;
+            UniLog.Log($"{fileName} {args}");
+            process.StartInfo.RedirectStandardOutput = false;
+            process.StartInfo.UseShellExecute = true;
             process.StartInfo.CreateNoWindow = false;
             process.StartInfo.WindowStyle = ProcessWindowStyle.Normal;
-            process.OutputDataReceived += OnOutput;
             process.Start();
-            process.BeginOutputReadLine();
             process.WaitForExit();
-        }
-
-        private void OnOutput(object sender, DataReceivedEventArgs e)
-        {
-            UniLog.Log(e.Data);
         }
     }
 
