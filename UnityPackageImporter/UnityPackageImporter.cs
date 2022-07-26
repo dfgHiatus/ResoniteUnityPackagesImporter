@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
 using UnityPackageImporter.Extractor;
 
 namespace UnityPackageImporter
@@ -25,6 +26,8 @@ namespace UnityPackageImporter
         private static string CachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
         private static UnityPackageExtractor extractor = new UnityPackageExtractor();
 
+        [AutoRegisterConfigKey]
+        private static ModConfigurationKey<bool> importAsRawFiles = new ModConfigurationKey<bool>("importAsRawFiles", "Import files directly into Neos. Unity Packages can be very large, keep this true unless you know what you're doing!", () => true);
         [AutoRegisterConfigKey]
         private static ModConfigurationKey<bool> importText = new ModConfigurationKey<bool>("importText", "Import Text", () => true);
         [AutoRegisterConfigKey]
@@ -54,10 +57,7 @@ namespace UnityPackageImporter
             foreach (string file in files)
             {
                 fileToHash.Add(file, GenerateMD5(file));
-                Msg("hash file " + file);
-                Msg("hash md5 " + GenerateMD5(file));
             }
-            Msg("Hashed");
 
             HashSet<string> dirsToImport = new();
             HashSet<string> unityPackagesToDecompress = new();
@@ -67,12 +67,10 @@ namespace UnityPackageImporter
                 if (!Directory.Exists(dir))
                 {
                     unityPackagesToDecompress.Add(element.Key);
-                    Msg("decompress " + element.Key);
                 }
                 else
                 {
                     dirsToImport.Add(dir);
-                    Msg("dirsToImport " + element.Key);
                 }
             }
 
@@ -87,7 +85,6 @@ namespace UnityPackageImporter
 
                 var extractedPath = Path.Combine(CachePath, fileToHash[package]);
                 extractor.Unpack(package, extractedPath);
-                Msg("Unpacked");
                 dirsToImport.Add(extractedPath);
             }
             return dirsToImport.ToArray();
@@ -111,40 +108,29 @@ namespace UnityPackageImporter
                 {
                     if (Path.GetExtension(file).ToLower().Equals(".unitypackage"))
                     {
-                        Msg($"hasUnityPackage.AddItem({file})");
                         hasUnityPackage.Add(file);
                     }
                     else
                     {
                         notUnityPackage.Add(file);
-                        Msg($"notUnityPackage.AddItem({file})");
                     }
                 }
-
+                
                 List<string> allDirectoriesToBatchImport = new();
-
-                Msg("length of unity files " + hasUnityPackage.Count);
                 foreach (string dir in DecomposeUnityPackages(hasUnityPackage.ToArray()))
                 {
-                    Msg("dir " + dir);
                     allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories).Where(shouldImportFile).ToArray());
                 }
-                Msg("total files to import " + allDirectoriesToBatchImport.Count());
-                foreach (var item in allDirectoriesToBatchImport)
-                {
-                    Msg("Unity file - " + item);
-                }
 
-                BatchFolderImporter.BatchImport(Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package import"), allDirectoriesToBatchImport);
-                Msg("Imported");
-
+                var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package import");
+                slot.PositionInFrontOfUser();
+                BatchFolderImporter.BatchImport(slot, allDirectoriesToBatchImport, config.GetValue(importAsRawFiles));
+          
                 if (notUnityPackage.Count > 0)
                 {
                     files = notUnityPackage.ToArray();
-                    Msg("notUnityPackage.Length > 0");
                     return true;
                 }
-                Msg("!notUnityPackage.Length > 0");
                 return false;
             }
         }
@@ -189,6 +175,7 @@ namespace UnityPackageImporter
                 return false;
             }
         }
+
         //credit to delta for this method https://github.com/XDelta/
         private static string GenerateMD5(string filepath)
         {
