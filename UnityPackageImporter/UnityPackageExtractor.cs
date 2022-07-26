@@ -15,16 +15,12 @@ namespace UnityPackageImporter.Extractor
         private readonly static string extractor64Bit = Path.Combine("nml_mods", "unityPackageExtractor", "extractor64.exe");
         private readonly static string extractor86Bit = Path.Combine("nml_mods", "unityPackageExtractor", "extractor86.exe");
 
-        public static readonly List<string> valid2DFileExtensions = new List<string>()
+        public static readonly List<string> validFileExtensions = new List<string>()
         {
             ".jpeg",
             ".jpg",
             ".png",
-        };
-
-        public static readonly List<string> valid3DFileExtensions = new List<string>()
-        {
-            ".fbx",
+            ".fbx"
         };
 
         public void Unpack(string pathToPackage, string outputPath)
