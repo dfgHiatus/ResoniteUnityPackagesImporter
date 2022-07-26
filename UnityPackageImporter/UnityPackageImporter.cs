@@ -27,14 +27,8 @@ namespace UnityPackageImporter
         {
             new Harmony("net.dfgHiatus.UnityPackageImporter").PatchAll();
             config = GetConfiguration();
-            Engine.Current.RunPostInit(() => AssetPatch());
+            Directory.CreateDirectory(CachePath);
         }
-        private static void AssetPatch()
-        {
-            var aExt = Traverse.Create(typeof(AssetHelper)).Field<Dictionary<AssetClass, List<string>>>("associatedExtensions");
-            aExt.Value[AssetClass.Special].Add("unitypackage");
-        }
-
         public static string[] DecomposeUnityPackages(string[] files)
         {
             Dictionary<string, string> fileToHash = new();
