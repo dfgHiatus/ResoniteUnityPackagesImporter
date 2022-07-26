@@ -103,7 +103,7 @@ namespace UnityPackageImporter
                 string[] notUnityPackage = new string[] { };
                 foreach (string file in files)
                 {
-                    if (file.ToLower().EndsWith(".unitypackage"))
+                    if (Path.GetExtension(file).ToLower().Equals(".unitypackage"))
                     {
                         hasUnityPackage.AddItem(file);
                     }
