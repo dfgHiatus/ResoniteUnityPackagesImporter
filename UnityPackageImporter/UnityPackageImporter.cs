@@ -21,6 +21,8 @@ namespace UnityPackageImporter
         public override string Version => "1.0.0";
         public override string Link => "https://github.com/dfgHiatus/NeosUnityPackagesImporter";
         public static ModConfiguration config;
+        private static string CachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
+
         public override void OnEngineInit()
         {
             new Harmony("net.dfgHiatus.UnityPackageImporter").PatchAll();
@@ -33,52 +35,58 @@ namespace UnityPackageImporter
             aExt.Value[AssetClass.Special].Add("unitypackage");
         }
 
-        public static string DecomposeUnityPackage(string[] files)
+        public static string[] DecomposeUnityPackages(string[] files)
         {
-            Dictionary<string, string> hashToFile = new();
+            Dictionary<string, string> fileToHash = new();
             foreach (string file in files)
             {
-                hashToFile.Add(GenerateMD5(file), file);
+                fileToHash.Add(file, GenerateMD5(file));
             }
 
-            var modelName = Path.GetFileNameWithoutExtension(model);
-            if (ContainsUnicodeCharacter(modelName))
+            HashSet<string> dirsToImport = new();
+            HashSet<string> unityPackagesToDecompress = new();
+            foreach (var element in fileToHash)
             {
-                throw new ArgumentException("Imported unity package cannot have unicode characters in its file name.");
-            }
-
-            var trueCachePath = Path.Combine(Engine.Current.CachePath, "Cache");
-            var time = DateTime.Now.Ticks.ToString();
-
-            // Make a new directory for the extracted files under trueCachePath
-            UnityPackageExtractor extractor = new UnityPackageExtractor();
-            var extractedPath = Path.Combine(trueCachePath, modelName + "_" + time);
-            extractor.Unpack(model, extractedPath);
-
-            // Inside the extracted directory, create a new directory for the model
-            var modelPath = Path.Combine(extractedPath, "_neosImports");
-            Directory.CreateDirectory(modelPath);
-
-            // Move all the files to the new directory whose extensions are in the valid2DFileExtensions list and valid3DFileExtensions list
-            //var files = Directory.GetFiles(extractedPath);
-            foreach (var file in files)
-            {
-                var fileName = Path.GetFileName(file);
-                var fileExt = Path.GetExtension(file);
-                if (UnityPackageExtractor.valid2DFileExtensions.Contains(fileExt) || UnityPackageExtractor.valid3DFileExtensions.Contains(fileExt))
+                var dir = Path.Combine(CachePath, element.Value);
+                if (!Directory.Exists(dir))
                 {
-                    var newFilePath = Path.Combine(modelPath, fileName);
-                    File.Move(file, newFilePath);
+                    unityPackagesToDecompress.Add(element.Key);
+                }
+                else 
+                { 
+                    dirsToImport.Add(dir);
                 }
             }
 
-            // Using the static BatchFolderImporter, import the contents of the new directory
-            var importSlot = Engine.Current.WorldManager.FocusedWorld.RootSlot.AddSlot(modelName);
-            importSlot.PositionInFrontOfUser();
-            BatchFolderImporter.IndividualImport(importSlot, extractedPath);
+            foreach (var package in unityPackagesToDecompress)
+            {
+                var modelName = Path.GetFileNameWithoutExtension(package);
+                if (ContainsUnicodeCharacter(modelName))
+                {
+                    Error("Imported unity package cannot have unicode characters in its file name.");
+                    continue;
+                }
 
-            // As we are done at this point.
-            return;
+                // Make a new directory for the extracted files under CachePath
+                UnityPackageExtractor extractor = new UnityPackageExtractor();
+                var extractedPath = Path.Combine(CachePath, fileToHash[package]);
+                extractor.Unpack(package, extractedPath);
+
+
+                // Delete all Files we don't want
+                var extractedfiles = Directory.GetFiles(extractedPath);
+                foreach (var file in extractedfiles)
+                {
+                    var fileName = Path.GetFileName(file);
+                    var fileExt = Path.GetExtension(file);
+                    if (!UnityPackageExtractor.validFileExtensions.Contains(fileExt))
+                    {
+                        File.Delete(file);
+                    }
+                }
+                dirsToImport.Add(extractedPath);
+            }
+            return dirsToImport.ToArray();
         }
 
         private static bool ContainsUnicodeCharacter(string input)
@@ -106,10 +114,12 @@ namespace UnityPackageImporter
                     }
                 }
 
-
-
-
-
+                string[] allFilesToBatchImport = new string[] { };
+                foreach (string dir in DecomposeUnityPackages(hasUnityPackage))
+                {
+                    allFilesToBatchImport.AddRangeToArray(Directory.EnumerateFiles(dir).ToArray());
+                }
+                BatchFolderImporter.BatchImport(Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package import"), allFilesToBatchImport);
 
                 if (notUnityPackage.Length > 0)
                 {
