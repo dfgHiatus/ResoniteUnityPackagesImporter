@@ -71,17 +71,6 @@ namespace UnityPackageImporter
                 var extractedPath = Path.Combine(CachePath, fileToHash[package]);
                 extractor.Unpack(package, extractedPath);
                 Msg("Unpacked");
-
-                // Delete all Files we don't want
-                var extractedfiles = Directory.GetFiles(extractedPath);
-                foreach (var file in extractedfiles)
-                {
-                    var fileExt = Path.GetExtension(file);
-                    if (UnityPackageExtractor.invalidFileExtensions.Contains(fileExt))
-                    {
-                        File.Delete(file);
-                    }
-                }
                 dirsToImport.Add(extractedPath);
             }
             return dirsToImport.ToArray();
@@ -93,7 +82,7 @@ namespace UnityPackageImporter
             return input.Any(c => c > MaxAnsiCode);
         }
 
-        [HarmonyPatch(typeof(UniversalImporter), "Import", new[] {typeof(AssetClass), typeof(IEnumerable<string>), typeof(World), typeof(float3), typeof(floatQ), typeof(bool)})]
+        [HarmonyPatch(typeof(UniversalImporter), "Import", new[] { typeof(AssetClass), typeof(IEnumerable<string>), typeof(World), typeof(float3), typeof(floatQ), typeof(bool) })]
         class UniversalImporterPatch
         {
             static bool Prefix(ref IEnumerable<string> files)
@@ -115,13 +104,13 @@ namespace UnityPackageImporter
                     }
                 }
 
-                List<string> allDirectoriesToBatchImport = new ();
+                List<string> allDirectoriesToBatchImport = new();
 
                 Msg("length of unity files " + hasUnityPackage.Count);
                 foreach (string dir in DecomposeUnityPackages(hasUnityPackage.ToArray()))
                 {
                     Msg("dir " + dir);
-                    allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories));
+                    allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories).Where(shouldImportFile).ToArray());
                 }
                 Msg("total files to import " + allDirectoriesToBatchImport.Count());
                 foreach (var item in allDirectoriesToBatchImport)
@@ -143,17 +132,24 @@ namespace UnityPackageImporter
             }
         }
 
-        //credit to delta for this method https://github.com/XDelta/
-        private static string GenerateMD5(string filepath)
+        private static bool shouldImportFile(string file)
         {
-            using (var hasher = MD5.Create())
+            var fileExt = Path.GetExtension(file);
+            return !UnityPackageExtractor.invalidFileExtensions.Contains(fileExt);
+        }
+    }
+
+    //credit to delta for this method https://github.com/XDelta/
+    private static string GenerateMD5(string filepath)
+    {
+        using (var hasher = MD5.Create())
+        {
+            using (var stream = File.OpenRead(filepath))
             {
-                using (var stream = File.OpenRead(filepath))
-                {
-                    var hash = hasher.ComputeHash(stream);
-                    return BitConverter.ToString(hash).Replace("-", "");
-                }
+                var hash = hasher.ComputeHash(stream);
+                return BitConverter.ToString(hash).Replace("-", "");
             }
         }
     }
+}
 }
