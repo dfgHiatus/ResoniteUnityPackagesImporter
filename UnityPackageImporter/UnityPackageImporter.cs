@@ -52,8 +52,8 @@ namespace UnityPackageImporter
                 {
                     unityPackagesToDecompress.Add(element.Key);
                 }
-                else 
-                { 
+                else
+                {
                     dirsToImport.Add(dir);
                 }
             }
@@ -77,7 +77,6 @@ namespace UnityPackageImporter
                 var extractedfiles = Directory.GetFiles(extractedPath);
                 foreach (var file in extractedfiles)
                 {
-                    var fileName = Path.GetFileName(file);
                     var fileExt = Path.GetExtension(file);
                     if (!UnityPackageExtractor.validFileExtensions.Contains(fileExt))
                     {
@@ -95,7 +94,7 @@ namespace UnityPackageImporter
             return input.Any(c => c > MaxAnsiCode);
         }
 
-        [HarmonyPatch(typeof(UniversalImporter), "Import")]
+        [HarmonyPatch(typeof(UniversalImporter), "Import", new[] {typeof(AssetClass), typeof(IEnumerable<string>), typeof(World), typeof(float3), typeof(floatQ), typeof(bool)})]
         class UniversalImporterPatch
         {
             static bool Prefix(ref IEnumerable<string> files)
