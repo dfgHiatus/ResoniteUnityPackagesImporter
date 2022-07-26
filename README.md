@@ -8,3 +8,5 @@ A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https
 1. Start the game. If you want to verify that the mod is working you can check your Neos logs.
 
 This might freeze your game for a little bit during import. Recommended to import one file type at a time, pairs nicely with [NeosModSettings](https://github.com/badhaloninja/NeosModSettings)
+
+Also! Best performs with one package at a time (as they can be beefy), and should be able to mix and match packages with other files but I make no guarantees. Have fun!
