@@ -1,27 +1,31 @@
-﻿using System;
-using System.IO;
-using System.Diagnostics;
+﻿using System.IO;
+using ICSharpCode.SharpZipLib.GZip;
+using ICSharpCode.SharpZipLib.Tar;
 
 namespace UnityPackageImporter.Extractor
 {
     public class UnityPackageExtractor
     {
-        private readonly static string extractor64Bit = Path.Combine("nml_mods", "unityPackageExtractor", "extractor64.exe");
-        private readonly static string extractor86Bit = Path.Combine("nml_mods", "unityPackageExtractor", "extractor86.exe");
-
-        public void Unpack(string pathToPackage, string outputPath)
+        public void Unpack(string input, string outputDir)
         {
-            var process = new Process();
-            var fileName = Environment.Is64BitOperatingSystem ? extractor64Bit : extractor86Bit;
-            process.StartInfo.FileName = fileName;
-            var args = string.Join(" ", new string[] { pathToPackage, outputPath });
-            process.StartInfo.Arguments = args;
-            process.StartInfo.UseShellExecute = true;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            process.Start();
-            process.WaitForExit();
+            var a = File.OpenRead(input);
+            var b = new GZipInputStream(a);
+            var c = TarArchive.CreateInputTarArchive(b);
+            var temp = Path.Combine(outputDir, "temp");
+            c.ExtractContents(temp);
+            c.Close();
+            b.Close();
+            a.Close();
+            foreach (var dir in Directory.GetDirectories(temp))
+            {
+                var assetPath = Path.Combine(dir, "asset");
+                var pathName = Path.Combine(dir, "pathname");
+                if (!File.Exists(assetPath) || !File.Exists(pathName)) continue;
+                var fileName = Path.GetFileName(File.ReadAllLines(pathName)[0]);
+                var outFile = Path.Combine(outputDir, fileName);
+                if (!File.Exists(outFile)) File.Copy(assetPath, outFile);
+            }
+            Directory.Delete(temp, true);
         }
     }
-
 }
