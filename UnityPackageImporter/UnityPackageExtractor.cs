@@ -35,7 +35,7 @@ namespace UnityPackageImporter.Extractor
                 var assetPath = Path.Combine(dir, "asset");
                 var pathName = Path.Combine(dir, "pathname");
                 if (!File.Exists(assetPath) || !File.Exists(pathName)) continue;
-                var fileName = Path.GetFileName(File.ReadAllLines(pathName)[0]);
+                var fileName = Path.GetFileName(File.ReadAllText(pathName).Trim()); // Stinky => var fileName = Path.GetFileName(File.ReadAllLines(pathName)[0]);
                 var outFile = Path.Combine(outputDir, fileName);
                 if (!File.Exists(outFile)) File.Copy(assetPath, outFile);
             }
