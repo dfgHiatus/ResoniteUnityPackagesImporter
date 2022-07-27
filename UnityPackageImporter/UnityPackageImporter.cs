@@ -134,22 +134,22 @@ namespace UnityPackageImporter
 
         private static bool ShouldImportFile(string file)
         {
-            var fileExtension = Path.GetExtension(file);
-            if (Config.GetValue(importText) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Text)
+            var assetClass = AssetHelper.ClassifyExtension(Path.GetExtension(file));
+            if (Config.GetValue(importText) && assetClass == AssetClass.Text)
                 return true;
-            if (Config.GetValue(importTexture) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Texture)
+            if (Config.GetValue(importTexture) && assetClass == AssetClass.Texture)
                 return true;
-            if (Config.GetValue(importDocument) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Document)
+            if (Config.GetValue(importDocument) && assetClass == AssetClass.Document)
                 return true;
-            if (Config.GetValue(importMesh) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Model)
+            if (Config.GetValue(importMesh) && assetClass == AssetClass.Model)
                 return true;
-            if (Config.GetValue(importPointCloud) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.PointCloud)
+            if (Config.GetValue(importPointCloud) && assetClass == AssetClass.PointCloud)
                 return true;
-            if (Config.GetValue(importAudio) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Audio)
+            if (Config.GetValue(importAudio) && assetClass == AssetClass.Audio)
                 return true;
-            if (Config.GetValue(importFont) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Font)
+            if (Config.GetValue(importFont) && assetClass == AssetClass.Font)
                 return true;
-            return Config.GetValue(importVideo) && AssetHelper.ClassifyExtension(fileExtension) == AssetClass.Video;
+            return Config.GetValue(importVideo) && assetClass == AssetClass.Video;
         }
 
         //credit to delta for this method https://github.com/XDelta/
