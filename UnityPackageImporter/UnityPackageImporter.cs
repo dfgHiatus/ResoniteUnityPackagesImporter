@@ -16,12 +16,19 @@ namespace UnityPackageImporter
     {
         public override string Name => "UnityPackageImporter";
         public override string Author => "dfgHiatus, eia485, delta, Frozenreflex";
-        public override string Version => "1.0.1";
+        public override string Version => "1.1.0";
         public override string Link => "https://github.com/dfgHiatus/NeosUnityPackagesImporter";
 
         public static ModConfiguration Config;
         private static string _cachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
         private static UnityPackageExtractor _extractor = new();
+
+        public override void DefineConfiguration(ModConfigurationDefinitionBuilder builder)
+        {
+            builder
+                .Version(new Version(1, 1, 0))
+                .AutoSave(true); 
+        }
 
         [AutoRegisterConfigKey]
         private static ModConfigurationKey<bool> importAsRawFiles = 
