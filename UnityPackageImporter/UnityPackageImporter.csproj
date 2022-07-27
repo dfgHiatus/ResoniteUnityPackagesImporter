@@ -8,13 +8,13 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>UnityPackageImporter</RootNamespace>
     <AssemblyName>UnityPackageImporter</AssemblyName>
-	<LangVersion>10</LangVersion>
+    <LangVersion>10</LangVersion>
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <TargetFrameworkProfile />
     <ProjectGuid>{0322B2EF-7452-479D-BAE2-FCAB75033337}</ProjectGuid>
-	<NeosPath>$(MSBuildThisFileDirectory)NeosVR</NeosPath>
+    <NeosPath>$(MSBuildThisFileDirectory)NeosVR</NeosPath>
     <NeosPath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\NeosVR\')">C:\Program Files (x86)\Steam\steamapps\common\NeosVR\</NeosPath>
     <NeosPath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/NeosVR/')">$(HOME)/.steam/steam/steamapps/common/NeosVR/</NeosPath>
     <NeosPath Condition="Exists('E:\Programs\Steam\steamapps\common\NeosVR')">E:\Programs\Steam\steamapps\common\NeosVR\</NeosPath>

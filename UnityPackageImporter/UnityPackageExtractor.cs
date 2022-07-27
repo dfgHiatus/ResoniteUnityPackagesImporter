@@ -6,12 +6,12 @@ namespace UnityPackageImporter.Extractor
 {
     public class UnityPackageExtractor
     {
-        public void Unpack(string pathToPackage, string outputPath)
+        public void Unpack(string input, string outputDir)
         {
-            var a = File.OpenRead(pathToPackage);
+            var a = File.OpenRead(input);
             var b = new GZipInputStream(a);
             var c = TarArchive.CreateInputTarArchive(b);
-            var temp = Path.Combine(outputPath, "temp");
+            var temp = Path.Combine(outputDir, "temp");
             c.ExtractContents(temp);
             c.Close();
             b.Close();
@@ -22,11 +22,10 @@ namespace UnityPackageImporter.Extractor
                 var pathName = Path.Combine(dir, "pathname");
                 if (!File.Exists(assetPath) || !File.Exists(pathName)) continue;
                 var fileName = Path.GetFileName(File.ReadAllLines(pathName)[0]);
-                var outFile = Path.Combine(outputPath, fileName);
+                var outFile = Path.Combine(outputDir, fileName);
                 if (!File.Exists(outFile)) File.Copy(assetPath, outFile);
             }
             Directory.Delete(temp, true);
         }
     }
-
 }
