@@ -8,16 +8,17 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>UnityPackageImporter</RootNamespace>
     <AssemblyName>UnityPackageImporter</AssemblyName>
-	<LangVersion>10</LangVersion>
+    <LangVersion>10</LangVersion>
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <TargetFrameworkProfile />
     <ProjectGuid>{0322B2EF-7452-479D-BAE2-FCAB75033337}</ProjectGuid>
-	<NeosPath>$(MSBuildThisFileDirectory)NeosVR</NeosPath>
+    <NeosPath>$(MSBuildThisFileDirectory)NeosVR</NeosPath>
     <NeosPath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\NeosVR\')">C:\Program Files (x86)\Steam\steamapps\common\NeosVR\</NeosPath>
     <NeosPath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/NeosVR/')">$(HOME)/.steam/steam/steamapps/common/NeosVR/</NeosPath>
     <NeosPath Condition="Exists('E:\Programs\Steam\steamapps\common\NeosVR')">E:\Programs\Steam\steamapps\common\NeosVR\</NeosPath>
+    <NeosPath Condition="Exists('/mnt/LocalDisk/SteamLibrary/steamapps/common/NeosVR/')">/mnt/LocalDisk/SteamLibrary/steamapps/common/NeosVR/</NeosPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -48,6 +49,9 @@
     </Reference>
     <Reference Include="FrooxEngine">
       <HintPath>$(NeosPath)Neos_Data\Managed\FrooxEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib, Version=1.3.3.11, Culture=neutral, PublicKeyToken=1b03e6acf1164f73, processorArchitecture=MSIL">
+      <HintPath>..\packages\SharpZipLib.1.3.3\lib\net45\ICSharpCode.SharpZipLib.dll</HintPath>
     </Reference>
     <Reference Include="NeosModLoader">
       <HintPath>$(NeosPath)Libraries\NeosModLoader.dll</HintPath>
