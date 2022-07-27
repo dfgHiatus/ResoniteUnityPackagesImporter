@@ -33,4 +33,4 @@ Presently, it supports:
 - Should be able to mix and match packages with the import of other files, currently untested
 
 ### Dependencies
-- [SharpZLib](https://github.com/icsharpcode/SharpZipLib) - MIT Licensed 
+- [SharpZLib](https://github.com/icsharpcode/SharpZipLib) - MIT License
