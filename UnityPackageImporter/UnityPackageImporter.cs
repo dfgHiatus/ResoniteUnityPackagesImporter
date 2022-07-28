@@ -135,21 +135,14 @@ namespace UnityPackageImporter
         private static bool ShouldImportFile(string file)
         {
             var assetClass = AssetHelper.ClassifyExtension(Path.GetExtension(file));
-            if (Config.GetValue(importText) && assetClass == AssetClass.Text)
-                return true;
-            if (Config.GetValue(importTexture) && assetClass == AssetClass.Texture)
-                return true;
-            if (Config.GetValue(importDocument) && assetClass == AssetClass.Document)
-                return true;
-            if (Config.GetValue(importMesh) && assetClass == AssetClass.Model)
-                return true;
-            if (Config.GetValue(importPointCloud) && assetClass == AssetClass.PointCloud)
-                return true;
-            if (Config.GetValue(importAudio) && assetClass == AssetClass.Audio)
-                return true;
-            if (Config.GetValue(importFont) && assetClass == AssetClass.Font)
-                return true;
-            return Config.GetValue(importVideo) && assetClass == AssetClass.Video;
+            return (Config.GetValue(importText) && assetClass == AssetClass.Text) ||
+            (Config.GetValue(importTexture) && assetClass == AssetClass.Texture) ||
+            (Config.GetValue(importDocument) && assetClass == AssetClass.Document) ||
+            (Config.GetValue(importMesh) && assetClass == AssetClass.Model) ||
+            (Config.GetValue(importPointCloud) && assetClass == AssetClass.PointCloud) ||
+            (Config.GetValue(importAudio) && assetClass == AssetClass.Audio) ||
+            (Config.GetValue(importFont) && assetClass == AssetClass.Font) ||
+            (Config.GetValue(importVideo) && assetClass == AssetClass.Video);
         }
 
         //credit to delta for this method https://github.com/XDelta/
