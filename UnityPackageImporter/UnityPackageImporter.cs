@@ -16,7 +16,7 @@ namespace UnityPackageImporter
     {
         public override string Name => "UnityPackageImporter";
         public override string Author => "dfgHiatus, eia485, delta, Frozenreflex";
-        public override string Version => "1.1.0";
+        public override string Version => "1.1.2";
         public override string Link => "https://github.com/dfgHiatus/NeosUnityPackagesImporter";
 
         public static ModConfiguration Config;
