@@ -30,3 +30,6 @@ Presently, it supports:
 - The importer doesn't place files under a single root, which can be a little messy
 - This might hang a little bit during import. Recommended to import one unity package at a time, pairs nicely with [NeosModSettings](https://github.com/badhaloninja/NeosModSettings)
 - Should be able to mix and match packages with the import of other files, currently untested
+
+### Dependencies
+- [SharpZLib](https://github.com/icsharpcode/SharpZipLib) - MIT License
