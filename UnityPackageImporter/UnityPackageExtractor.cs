@@ -41,10 +41,8 @@ namespace UnityPackageImporter.Extractor
                 // The easiest thing to do is Trim() the string (which worked for v1.0.0 and v1.1.0?!), but for some
                 // eldritch reason it no longer wants to remove trailing spaces. I love this language.
                 var rawText = File.ReadAllText(rawPathName);
-                UniLog.Log(rawText);
                 var lastIndex = rawText.LastIndexOfAny(theAlphabet);
                 var pathName = rawText.Substring(0, lastIndex + 1);
-                UniLog.Log(pathName);
 
                 var fileName = Path.GetFileName(pathName); 
                 var outFile = Path.Combine(outputDir, fileName);
