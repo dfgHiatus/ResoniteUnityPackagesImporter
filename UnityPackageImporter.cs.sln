@@ -1,5 +1,11 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32602.215
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityPackageImporter", "UnityPackageImporter\UnityPackageImporter.csproj", "{0322B2EF-7452-479D-BAE2-FCAB75033337}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnityPackageImporter.Tests", "UnityPackageImporter.Tests\UnityPackageImporter.Tests.csproj", "{EA2DA8E9-FE00-474C-A0FF-23EEAB5560EE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,6 +17,10 @@ Global
 		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EA2DA8E9-FE00-474C-A0FF-23EEAB5560EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EA2DA8E9-FE00-474C-A0FF-23EEAB5560EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EA2DA8E9-FE00-474C-A0FF-23EEAB5560EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EA2DA8E9-FE00-474C-A0FF-23EEAB5560EE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -16,7 +16,7 @@ namespace UnityPackageImporter
     {
         public override string Name => "UnityPackageImporter";
         public override string Author => "dfgHiatus, eia485, delta, Frozenreflex, benaclejames";
-        public override string Version => "1.1.3";
+        public override string Version => "1.3.0";
         public override string Link => "https://github.com/dfgHiatus/NeosUnityPackagesImporter";
 
         public static ModConfiguration Config;
@@ -138,7 +138,8 @@ namespace UnityPackageImporter
             return (Config.GetValue(importText) && assetClass == AssetClass.Text) ||
             (Config.GetValue(importTexture) && assetClass == AssetClass.Texture) ||
             (Config.GetValue(importDocument) && assetClass == AssetClass.Document) ||
-            (Config.GetValue(importMesh) && assetClass == AssetClass.Model) ||
+            (Config.GetValue(importMesh) && assetClass == AssetClass.Model 
+                && Path.GetExtension(file).ToLower() != ".xml") ||
             (Config.GetValue(importPointCloud) && assetClass == AssetClass.PointCloud) ||
             (Config.GetValue(importAudio) && assetClass == AssetClass.Audio) ||
             (Config.GetValue(importFont) && assetClass == AssetClass.Font) ||
