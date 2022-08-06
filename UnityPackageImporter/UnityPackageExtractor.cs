@@ -7,12 +7,12 @@ namespace UnityPackageImporter.Extractor
 {
     public class UnityPackageExtractor
     {
-        private static readonly char[] theAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".ToCharArray();
+        private static readonly char[] TheAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".ToCharArray();
 
-        public void Unpack(string input, string outputDir)
+        public static void Unpack(string input, string outputDir)
         {
-            FileStream a = File.OpenRead(input);
-            GZipStream b = new GZipStream(a, CompressionMode.Decompress);
+            var a = File.OpenRead(input);
+            var b = new GZipStream(a, CompressionMode.Decompress);
 
             try
             {
@@ -23,7 +23,7 @@ namespace UnityPackageImporter.Extractor
                     if (string.IsNullOrEmpty(tarEntry.Name))
                         break;
 
-                    string dirPath = Path.Combine(temp, tarEntry.Name);
+                    var dirPath = Path.Combine(temp, tarEntry.Name);
                     if (tarEntry.Data.Length == 0) // If the data length is 0, this is a directory entry
                     {
                         if (!Directory.Exists(dirPath))
@@ -43,7 +43,7 @@ namespace UnityPackageImporter.Extractor
                     // The easiest thing to do is Trim() the string (which worked for v1.0.0 and v1.1.0?!), but for some
                     // eldritch reason it no longer wants to remove trailing spaces. I love this language.
                     var rawText = File.ReadAllText(rawPathName);
-                    var lastIndex = rawText.LastIndexOfAny(theAlphabet);
+                    var lastIndex = rawText.LastIndexOfAny(TheAlphabet);
                     var pathName = rawText.Substring(0, lastIndex + 1);
 
                     var fileName = Path.GetFileName(pathName);
