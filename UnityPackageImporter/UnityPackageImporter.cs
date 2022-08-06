@@ -19,9 +19,9 @@ namespace UnityPackageImporter
         public override string Version => "1.3.0";
         public override string Link => "https://github.com/dfgHiatus/NeosUnityPackagesImporter";
 
-        public static ModConfiguration Config;
+        private static ModConfiguration _config;
         private static string _cachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
-        private static UnityPackageExtractor _extractor = new();
+        //private static UnityPackageExtractor _extractor = new();
 
         public override void DefineConfiguration(ModConfigurationDefinitionBuilder builder)
         {
@@ -63,7 +63,7 @@ namespace UnityPackageImporter
         public override void OnEngineInit()
         {
             new Harmony("net.dfgHiatus.UnityPackageImporter").PatchAll();
-            Config = GetConfiguration();
+            _config = GetConfiguration();
             Directory.CreateDirectory(_cachePath);
         }
         public static string[] DecomposeUnityPackages(string[] files)
@@ -88,7 +88,7 @@ namespace UnityPackageImporter
                     continue;
                 }
                 var extractedPath = Path.Combine(_cachePath, fileToHash[package]);
-                _extractor.Unpack(package, extractedPath);
+                UnityPackageExtractor.Unpack(package, extractedPath);
                 dirsToImport.Add(extractedPath);
             }
             return dirsToImport.ToArray();
@@ -124,7 +124,7 @@ namespace UnityPackageImporter
 
                 var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package import");
                 slot.PositionInFrontOfUser();
-                BatchFolderImporter.BatchImport(slot, allDirectoriesToBatchImport, Config.GetValue(importAsRawFiles));
+                BatchFolderImporter.BatchImport(slot, allDirectoriesToBatchImport, _config.GetValue(importAsRawFiles));
 
                 if (notUnityPackage.Count <= 0) return false;
                 files = notUnityPackage.ToArray();
@@ -135,15 +135,15 @@ namespace UnityPackageImporter
         private static bool ShouldImportFile(string file)
         {
             var assetClass = AssetHelper.ClassifyExtension(Path.GetExtension(file));
-            return (Config.GetValue(importText) && assetClass == AssetClass.Text) ||
-            (Config.GetValue(importTexture) && assetClass == AssetClass.Texture) ||
-            (Config.GetValue(importDocument) && assetClass == AssetClass.Document) ||
-            (Config.GetValue(importMesh) && assetClass == AssetClass.Model 
+            return (_config.GetValue(importText) && assetClass == AssetClass.Text) ||
+            (_config.GetValue(importTexture) && assetClass == AssetClass.Texture) ||
+            (_config.GetValue(importDocument) && assetClass == AssetClass.Document) ||
+            (_config.GetValue(importMesh) && assetClass == AssetClass.Model 
                 && Path.GetExtension(file).ToLower() != ".xml") ||
-            (Config.GetValue(importPointCloud) && assetClass == AssetClass.PointCloud) ||
-            (Config.GetValue(importAudio) && assetClass == AssetClass.Audio) ||
-            (Config.GetValue(importFont) && assetClass == AssetClass.Font) ||
-            (Config.GetValue(importVideo) && assetClass == AssetClass.Video);
+            (_config.GetValue(importPointCloud) && assetClass == AssetClass.PointCloud) ||
+            (_config.GetValue(importAudio) && assetClass == AssetClass.Audio) ||
+            (_config.GetValue(importFont) && assetClass == AssetClass.Font) ||
+            (_config.GetValue(importVideo) && assetClass == AssetClass.Video);
         }
 
         //credit to delta for this method https://github.com/XDelta/

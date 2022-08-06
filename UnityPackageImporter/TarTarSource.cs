@@ -14,11 +14,11 @@ public static class TarTarSource
     
     public static TarEntry ReadTarEntry(Stream fs)
     {
-        TarEntry entry = new TarEntry();
+        var entry = new TarEntry();
 
         // Read 200 bytes for the header
-        byte[] header = new byte[0x200];
-        int bytesRead = fs.Read(header, 0, 0x200);
+        var header = new byte[0x200];
+        var bytesRead = fs.Read(header, 0, 0x200);
 
         // Get the name and size of the file
         entry.Name = Encoding.ASCII.GetString(header, 0, 100).Replace('\0', ' ').Trim();
@@ -26,11 +26,11 @@ public static class TarTarSource
             return entry;
 
         // Skip 24 bytes and read 12 for the size string from the header (octal)
-        string size = Encoding.ASCII.GetString(header, 124, 12).Replace('\0', ' ').Trim();
-        int sizeInt = Convert.ToInt32(size, 8);
+        var size = Encoding.ASCII.GetString(header, 124, 12).Replace('\0', ' ').Trim();
+        var sizeInt = Convert.ToInt32(size, 8);
 
         // Round size up to the nearest 512 bytes
-        int sizeRounded = (sizeInt + 511) & ~511;
+        var sizeRounded = (sizeInt + 511) & ~511;
 
         entry.Data = new byte[sizeRounded];
         bytesRead = fs.Read(entry.Data, 0, sizeRounded);
