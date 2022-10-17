@@ -8,7 +8,7 @@ A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https
 1. Start the game. If you want to verify that the mod is working you can check your Neos logs.
 
 ## FAQs
-1. <b>What does this mod do exactly?</b> This mod solely extracts the content of Unity Packages and imports them into Neos
+1. <b>What does this mod do exactly?</b> This mod solely extracts the assets of Unity Packages and imports them into Neos
 1. <b>Will this mod setup avatars for me?</b> No, you'll need to set them up normally.
 1. <b>What kind of unity packages can I import?</b> Anything! Avatar packages, world packages, anything you can think of!
 1. <b>Will this mod run on the Linux version of the game?</b> Yes
@@ -25,6 +25,13 @@ Presently, it supports:
 - Fonts
 - Videos
 - And raw binary variants of the above for file sharing
+9. <b>What will this mod NOT import?</b>
+- Prefabs
+- Scenes
+- Particle systems
+- Animations/Animators
+- Dynamic Bones
+- Phys Bones
 
 ## Known Issues and Limitations
 - The importer doesn't place files under a single root, which can be a little messy
