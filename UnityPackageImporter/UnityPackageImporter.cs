@@ -46,7 +46,7 @@ namespace UnityPackageImporter
             new("importDocument", "Import Documents", () => true);
         [AutoRegisterConfigKey]
         private static ModConfigurationKey<bool> importMesh = 
-            new("importMesh", "Import Mesh", () => true);
+            new("importMesh", "Import Meshes", () => true);
         [AutoRegisterConfigKey]
         private static ModConfigurationKey<bool> importPointCloud =
             new("importPointCloud", "Import Point Clouds", () => true);
