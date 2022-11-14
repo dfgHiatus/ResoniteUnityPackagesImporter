@@ -34,6 +34,6 @@ Presently, it supports:
 - Phys Bones
 
 ## Known Issues and Limitations
-- The importer doesn't place files under a single root, which can be a little messy
+- This will not work with the legacy file importer. Paste/drag and drop the UnityPackage onto the Neos window instead
+- This doesn't place files under a single root
 - This might hang a little bit during import. Recommended to import one unity package at a time, pairs nicely with [NeosModSettings](https://github.com/badhaloninja/NeosModSettings)
-- Should be able to mix and match packages with the import of other files, currently untested
