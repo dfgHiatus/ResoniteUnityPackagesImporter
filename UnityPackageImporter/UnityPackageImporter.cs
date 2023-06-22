@@ -25,32 +25,32 @@ namespace UnityPackageImporter
         public override void DefineConfiguration(ModConfigurationDefinitionBuilder builder)
         {
             builder
-                .Version(new Version(1, 1, 0))
+                .Version(new Version(1, 1, 1))
                 .AutoSave(true); 
         }
 
         [AutoRegisterConfigKey]
-        private static ModConfigurationKey<bool> importAsRawFiles = 
+        public static readonly ModConfigurationKey<bool> importAsRawFiles = 
             new("importAsRawFiles",
             "Import files directly into Neos. Unity Packages can be very large, keep this true unless you know what you're doing!",
-            () => true);
+            () => false);
         [AutoRegisterConfigKey]
-        private static ModConfigurationKey<bool> importText = 
+        public static readonly ModConfigurationKey<bool> importText = 
             new("importText", "Import Text", () => true);
         [AutoRegisterConfigKey]
-        private static ModConfigurationKey<bool> importTexture = 
+        public static readonly ModConfigurationKey<bool> importTexture = 
             new("importTexture", "Import Textures", () => true);
         [AutoRegisterConfigKey]
-        private static ModConfigurationKey<bool> importDocument = 
+        public static readonly ModConfigurationKey<bool> importDocument = 
             new("importDocument", "Import Documents", () => true);
         [AutoRegisterConfigKey]
-        private static ModConfigurationKey<bool> importMesh = 
+        public static readonly ModConfigurationKey<bool> importMesh = 
             new("importMesh", "Import Meshes", () => true);
         [AutoRegisterConfigKey]
-        private static ModConfigurationKey<bool> importPointCloud =
+        public static readonly ModConfigurationKey<bool> importPointCloud =
             new("importPointCloud", "Import Point Clouds", () => true);
         [AutoRegisterConfigKey]
-        private static ModConfigurationKey<bool> importAudio = 
+        public static readonly ModConfigurationKey<bool> importAudio = 
             new("importAudio", "Import Audio", () => true);
         [AutoRegisterConfigKey]
         public static ModConfigurationKey<bool> importFont = 
@@ -58,6 +58,9 @@ namespace UnityPackageImporter
         [AutoRegisterConfigKey]
         public static ModConfigurationKey<bool> importVideo = 
             new("importVideo", "Import Videos", () => true);
+        [AutoRegisterConfigKey]
+        public static ModConfigurationKey<bool> importUnknown =
+            new("importUnknown", "Import Unknown files", () => true);
 
         public override void OnEngineInit()
         {
@@ -137,7 +140,8 @@ namespace UnityPackageImporter
                 || (config.GetValue(importPointCloud) && assetClass == AssetClass.PointCloud) 
                 || (config.GetValue(importAudio) && assetClass == AssetClass.Audio) 
                 || (config.GetValue(importFont) && assetClass == AssetClass.Font) 
-                || (config.GetValue(importVideo) && assetClass == AssetClass.Video) 
+                || (config.GetValue(importVideo) && assetClass == AssetClass.Video)
+                || (config.GetValue(importUnknown) && assetClass == AssetClass.Unknown)
                 || (config.GetValue(importMesh) && assetClass == AssetClass.Model && extension != ".xml")   // Handle an edge case where assimp will try to import .xml files as 3D models
                 || extension == ".unitypackage";                                                            // Handle recursive unity package imports
         }
