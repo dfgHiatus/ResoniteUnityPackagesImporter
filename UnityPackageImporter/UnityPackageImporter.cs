@@ -109,7 +109,7 @@ namespace UnityPackageImporter
                 List<string> notUnityPackage = new();
                 foreach (var file in files)
                 {
-                    if (Path.GetExtension(file).ToLower().Equals(".unitypackage"))
+                    if (Path.GetExtension(file).ToLower().Equals(".unitypackage")||Path.ToLower().EndsWith(".tar.gz"))
                         hasUnityPackage.Add(file);
                     else
                         notUnityPackage.Add(file);
