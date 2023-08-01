@@ -19,6 +19,14 @@ namespace UnityPackageImporter
         public override string Version => "1.3.1";
         public override string Link => "https://github.com/dfgHiatus/NeosUnityPackagesImporter";
 
+        public override void DefineConfiguration(ModConfigurationDefinitionBuilder builder)
+        {
+            builder
+                .Version(new Version(1, 2, 0))
+                .AutoSave(true);
+        }
+
+
         private static ModConfiguration config;
         private static string cachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
 
