@@ -102,7 +102,6 @@ namespace UnityPackageImporter
         {
             static bool Prefix(ref IEnumerable<string> files)
             {
-                Msg("file size " + files.Count());
                 List<string> hasUnityPackage = new();
                 List<string> notUnityPackage = new();
                 foreach (var file in files)
