@@ -22,13 +22,6 @@ namespace UnityPackageImporter
         private static ModConfiguration config;
         private static string cachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
 
-        public override void DefineConfiguration(ModConfigurationDefinitionBuilder builder)
-        {
-            builder
-                .Version(new Version(1, 1, 0))
-                .AutoSave(true); 
-        }
-
         [AutoRegisterConfigKey]
         private static ModConfigurationKey<bool> importAsRawFiles = 
             new("importAsRawFiles",
