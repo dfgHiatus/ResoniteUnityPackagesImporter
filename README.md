@@ -1,6 +1,6 @@
-# UnityPackageImporter (and TarGZImporter!)
+# UnityPackageImporter (and Tar/TarGZ Importer!)
 
-A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https://neos.com/) that facilitates the import of Unity Packages and .tar.gz archives.
+A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https://neos.com/) that facilitates the import of Unity Packages and `.tar`/`.tar.gz` archives.
 
 ## Installation
 1. Install [NeosModLoader](https://github.com/zkxs/NeosModLoader).
