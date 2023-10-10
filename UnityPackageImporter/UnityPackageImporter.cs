@@ -27,7 +27,7 @@ public class UnityPackageImporter : ResoniteMod
     private readonly static ModConfigurationKey<bool> importAsRawFiles =
     new("importAsRawFiles",
         "Import files as raw binaries.",
-        () => true);
+        () => false);
     [AutoRegisterConfigKey]
     private readonly static ModConfigurationKey<bool> importText = 
         new("importText", "Import Text", () => true);
