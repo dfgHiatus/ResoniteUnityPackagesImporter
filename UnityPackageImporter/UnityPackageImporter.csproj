@@ -14,11 +14,11 @@
     <Deterministic>true</Deterministic>
     <TargetFrameworkProfile />
     <ProjectGuid>{0322B2EF-7452-479D-BAE2-FCAB75033337}</ProjectGuid>
-    <NeosPath>$(MSBuildThisFileDirectory)NeosVR</NeosPath>
-    <NeosPath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\NeosVR\')">C:\Program Files (x86)\Steam\steamapps\common\NeosVR\</NeosPath>
-    <NeosPath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/NeosVR/')">$(HOME)/.steam/steam/steamapps/common/NeosVR/</NeosPath>
-    <NeosPath Condition="Exists('E:\Programs\Steam\steamapps\common\NeosVR')">E:\Programs\Steam\steamapps\common\NeosVR\</NeosPath>
-    <NeosPath Condition="Exists('/mnt/LocalDisk/SteamLibrary/steamapps/common/NeosVR/')">/mnt/LocalDisk/SteamLibrary/steamapps/common/NeosVR/</NeosPath>
+    <GamePath>$(MSBuildThisFileDirectory)Resonite</GamePath>
+    <GamePath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Resonite\')">C:\Program Files (x86)\Steam\steamapps\common\Resonite\</GamePath>
+    <GamePath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/Resonite/')">$(HOME)/.steam/steam/steamapps/common/Resonite/</GamePath>
+    <GamePath Condition="Exists('E:\Programs\Steam\steamapps\common\Resonite')">E:\Programs\Steam\steamapps\common\Resonite\</GamePath>
+    <GamePath Condition="Exists('/mnt/LocalDisk/SteamLibrary/steamapps/common/Resonite/')">/mnt/LocalDisk/SteamLibrary/steamapps/common/Resonite/</GamePath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -39,20 +39,22 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>$(NeosPath)0Harmony.dll</HintPath>
-      <HintPath Condition="Exists('$(NeosPath)nml_libs/0Harmony.dll')">$(NeosPath)nml_libs/0Harmony.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Resonite\Libraries\0Harmony.dll</HintPath>
     </Reference>
-    <Reference Include="BaseX">
-      <HintPath>$(NeosPath)Neos_Data\Managed\BaseX.dll</HintPath>
+    <Reference Include="Elements.Assets">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Assets.dll</HintPath>
     </Reference>
-    <Reference Include="CodeX">
-      <HintPath>$(NeosPath)Neos_Data\Managed\CodeX.dll</HintPath>
+    <Reference Include="Elements.Core">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Core.dll</HintPath>
     </Reference>
     <Reference Include="FrooxEngine">
-      <HintPath>$(NeosPath)Neos_Data\Managed\FrooxEngine.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\FrooxEngine.dll</HintPath>
     </Reference>
-    <Reference Include="NeosModLoader">
-      <HintPath>$(NeosPath)Libraries\NeosModLoader.dll</HintPath>
+    <Reference Include="ResoniteModLoader">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Resonite\Libraries\ResoniteModLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="SkyFrost.Base">
+      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\SkyFrost.Base.dll</HintPath>
     </Reference>
     <Reference Include="System" />
   </ItemGroup>
@@ -67,6 +69,6 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy "$(TargetDir)\$(TargetFileName)" "$(NeosPath)nml_mods\"</PostBuildEvent>
+    <PostBuildEvent>copy "$(TargetDir)\$(TargetFileName)" "$(GamePath)rml_mods\"</PostBuildEvent>
   </PropertyGroup>
 </Project>
