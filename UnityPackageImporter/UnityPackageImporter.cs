@@ -24,9 +24,9 @@ public class UnityPackageImporter : ResoniteMod
     private static string cachePath = Path.Combine(Engine.Current.CachePath, "Cache", "DecompressedUnityPackages");
 
     [AutoRegisterConfigKey]
-    private readonly static ModConfigurationKey<bool> importAsRawFiles = 
-        new("importAsRawFiles",
-        "Import files directly into Resonite. Unity Packages can be very large, keep this true unless you know what you're doing!",
+    private readonly static ModConfigurationKey<bool> importAsRawFiles =
+    new("importAsRawFiles",
+        "Import files as raw binaries.",
         () => true);
     [AutoRegisterConfigKey]
     private readonly static ModConfigurationKey<bool> importText = 
@@ -110,9 +110,12 @@ public class UnityPackageImporter : ResoniteMod
                 allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories)
                     .Where(ShouldImportFile).ToArray());
 
-            var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package import");
+            var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package Import");
             slot.PositionInFrontOfUser();
-            BatchFolderImporter.BatchImport(slot, allDirectoriesToBatchImport, config.GetValue(importAsRawFiles));
+            BatchFolderImporter.BatchImport(
+                slot, 
+                allDirectoriesToBatchImport, 
+                config.GetValue(importAsRawFiles));
 
             if (notUnityPackage.Count <= 0) return false;
             files = notUnityPackage.ToArray();
