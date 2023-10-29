@@ -38,9 +38,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>$(GamePath)rml_libs\0Harmony.dll</HintPath>
-    </Reference>
     <Reference Include="Elements.Assets">
       <HintPath>$(GamePath)Resonite_Data\Managed\Elements.Assets.dll</HintPath>
     </Reference>
