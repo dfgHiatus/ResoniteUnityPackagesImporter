@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using UnityPackageImporter.Extractor;
+using System.Threading.Tasks;
 
 namespace UnityPackageImporter {
 
@@ -118,6 +119,38 @@ namespace UnityPackageImporter {
                 public List<string> ListOfPrefabs;
             };
 
+            private struct ImportTaskStruct
+            {
+                public Task ImportTask;
+                public Slot ImportRoot;
+                public string assetID;
+                public PrefabData prefabdata;
+                public List<string> boneArrayIDs;
+                public ImportTaskStruct(Task t, Slot r, string id, PrefabData prefabdata)
+                {
+                    this.assetID = id;
+                    this.ImportTask = t;
+                    this.ImportRoot = r;
+                    this.prefabdata = prefabdata;
+                    this.boneArrayIDs = new List<string>();
+                }
+
+            };
+
+            private struct PrefabData {
+                public Dictionary<string, IWorldElement> Entities;
+                public Dictionary<string, string> EntityChildID_To_EntityParentID;
+                public Slot RootSlot;
+                public PrefabData(Dictionary<string, IWorldElement> Entities, Dictionary<string, string> EntityChildID_To_EntityParentID, Slot RootSlot)
+                {
+                    this.RootSlot = RootSlot;
+                    this.Entities = Entities;
+                    this.EntityChildID_To_EntityParentID = EntityChildID_To_EntityParentID;
+                }
+            }
+
+            private static List<ImportTaskStruct> Tasks = new List<ImportTaskStruct>();
+
 
             static bool Prefix(ref IEnumerable<string> files)
             {
@@ -157,8 +190,17 @@ namespace UnityPackageImporter {
                     scanthesefiles,
                     config.GetValue(importAsRawFiles), out __state).ToList();
 
-                scanthesefiles = EndMethod(slot, scanthesefiles, config.GetValue(importAsRawFiles), __state).ToList();
 
+
+
+
+                List<string> yeetfiles = EndMethod(slot, scanthesefiles, config.GetValue(importAsRawFiles), __state).ToList();
+
+                /*DebugMSG*/Msg("Start handling Import Tasks");
+                slot.StartCoroutine(FinishPrefabWrapper(slot, scanthesefiles, __state));
+
+
+                scanthesefiles = yeetfiles;
 
                 //once we have removed the prefabs, now we let the original stuff go through so we have the files normally
                 //idk if we really need this if the stuff above is going to eventually just import prefabs and textures already set up... - @989onan
@@ -174,6 +216,120 @@ namespace UnityPackageImporter {
                 return true;
             }
 
+
+            private static IEnumerator<Context> FinishPrefabWrapper(Slot root, IEnumerable<string> files, shareddata __state)
+            {
+                __state.ListOfMetas.Add("hello");
+                yield return Context.WaitFor(FinishPrefab(root, files, __state));
+
+                yield break;
+            }
+
+
+            private static IEnumerator<Context> FinishPrefab(Slot root, IEnumerable<string> files, shareddata __state)
+            {
+
+                /*DebugMSG*/Msg("Waiting on Import Tasks");
+                foreach (ImportTaskStruct task in Tasks)
+                {
+                    task.ImportTask.Wait();
+                }
+
+
+                //Now time to merge.
+                /*DebugMSG*/Msg("Merging bones");
+                foreach (ImportTaskStruct task in Tasks)
+                {
+                    Slot taskSlot = task.ImportRoot;
+
+                    List<string> ListOfPrefabs = __state.ListOfPrefabs;
+                    List<string>  ListOfMetas = __state.ListOfMetas;
+                    Dictionary<String, String> AssetIDDict = __state.AssetIDDict;
+                    Dictionary<String, String> FileName_To_AssetIDDict = __state.FileName_To_AssetIDDict;
+
+                    //EXPLAINATION OF THIS CODE:
+                    //since we can make froox engine import any file, we can abuse this and delete everything froox engine imports except for the
+                    //model mesh. Then we can reassign the bones to the ones we made and set up a new VRIK
+
+                    
+
+
+
+                    String meshname = taskSlot.Name;
+
+                    Slot meshrenderslot = taskSlot.FindChild(taskSlot.Name,false,false, 3);
+                    SkinnedMeshRenderer skinnedmeshrender = null;
+                    try {
+                        skinnedmeshrender = ((SkinnedMeshRenderer)meshrenderslot.GetComponent(typeof(SkinnedMeshRenderer), false));
+                    }
+                    catch(Exception)
+                    {
+                        continue; // we don't need to merge the bones so tf cares. Later when we auto add materials, TODO: remove this later.
+                    }
+
+                    meshrenderslot.SetParent(task.ImportRoot.Parent);
+                    task.ImportRoot.Destroy();
+                    
+
+                    bool foundvrik = false;
+                    foreach(var i in task.prefabdata.RootSlot.Components)
+                    {
+                        if(i.GetType() == typeof(FrooxEngine.FinalIK.VRIK))
+                        {
+                            foundvrik = true;
+                        }
+                        
+                    }
+
+
+                    //TODO: Do away with all of this. Use the .Meta file from our asset and assign the bones that way.
+                    //Also, see comment 97843789213894
+                    BipedRig rigtype = new BipedRig();
+
+                    if (!foundvrik)
+                    {
+
+                        FrooxEngine.FinalIK.VRIK vrik = ((FrooxEngine.FinalIK.VRIK)task.prefabdata.RootSlot.AttachComponent(typeof(FrooxEngine.FinalIK.VRIK)));
+                        
+                        Rig.BoneNode rootbone = new Rig.BoneNode(task.prefabdata.RootSlot.Children.ElementAt(0).Children.ElementAt(0), BodyNode.Hips);
+
+
+                        rigtype = BipedRig.ClassifyBiped(task.prefabdata.RootSlot, rootbone);
+
+                        vrik.Solver.SimulationSpace.Target = task.prefabdata.RootSlot.Parent;
+                        vrik.Solver.OffsetSpace.Target = task.prefabdata.RootSlot.Parent;
+
+                        vrik.Initiate();
+                    }
+
+                    //this makes sure the bones related to this skinned mesh renderer from the prefab get put onto the skinned mesh renderer that FrooxEngine made
+                    
+                    for (int index = 0; index < skinnedmeshrender.Bones.Count(); index++)
+                    {
+
+                        Dictionary<string, string> EntityChildID_To_EntityParentID = task.prefabdata.EntityChildID_To_EntityParentID;
+                        List<string> boneArrayIDs = task.boneArrayIDs;
+
+                        Slot otherbone = ((Slot)task.prefabdata.Entities[EntityChildID_To_EntityParentID[boneArrayIDs[index]]]);//this takes the id of the current bone slot, which is the transform component, gets it's parent which is the game object id, then turns that into a slot using entities.
+                        skinnedmeshrender.Bones[index] = otherbone;
+
+                    }
+                    
+
+
+
+
+                }
+
+
+
+
+                /*DebugMSG*/
+                Msg("Finished Handling Lagged Import Tasks");
+                Tasks.Clear(); //very important since it's a static variable! This needs to be called at least at the end of importing.
+                yield return Context.ToWorld();
+                yield break;
+            }
 
 
             private static IEnumerable<string> startmethod(Slot root, IEnumerable<string> files, bool forceUnknown, out shareddata __state)
@@ -245,7 +401,7 @@ namespace UnityPackageImporter {
 
 
             //yay recursion!
-            private static Slot LoadPrefabUnity(IEnumerable<String> files, shareddata __state, Slot parentUnder, string PrefabID)
+            private static PrefabData LoadPrefabUnity(IEnumerable<String> files, shareddata __state, Slot parentUnder, string PrefabID)
             {
                 String Prefab = __state.AssetIDDict.GetValueSafe(PrefabID);
                 var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileNameWithoutExtension(Prefab));
@@ -289,9 +445,13 @@ namespace UnityPackageImporter {
                 //orphan transforms temp storage
                 Dictionary<string, string> OrphanTransforms_Child_To_Parent = new Dictionary<string, string>();
 
-
+                List<ImportTaskStruct> TasksTemp = new List<ImportTaskStruct>();
                 Dictionary<string, IWorldElement> Entities = new Dictionary<string, IWorldElement>();
                 Dictionary<string, string> EntityChildID_To_EntityParentID = new Dictionary<string, string>();
+
+                ImportTaskStruct currentEntityImportTaskHolder = new ImportTaskStruct();
+
+                List<string> tempBoneArrayIDs = new List<string>();
 
                 foreach (string line in File.ReadLines(Prefab))
                 {
@@ -624,7 +784,12 @@ namespace UnityPackageImporter {
                                     //yes this may run the importer again
                                     try
                                     {
-                                        BatchFolderImporter.BatchImport(((Slot)Entities[otherid]), new List<String>(new String[] { __state.AssetIDDict[meshid] }), false /*<- here we want false because this code wouldn't run if it was false to begin with.*/);
+                                        Task result = ImportModelUnity(((Slot)Entities[otherid]), __state.AssetIDDict[meshid]);
+
+                                        ImportTaskStruct finalResultThing = new ImportTaskStruct(result, ((Slot)Entities[otherid]), meshid, new PrefabData());
+
+                                        TasksTemp.Add(finalResultThing);
+
                                     }
                                     catch(Exception e)
                                     {
@@ -648,34 +813,22 @@ namespace UnityPackageImporter {
 
 
 
-                                    // TODO: There needs to be a way to merge these bones with an fbx import of the object that this references.
-                                    // that way we don't have to set our own IK and we can just drop in the objects parented under this object.
-                                    // maybe make a duplicate of the fbx that gets imported that this skinned mesh renderer references -- 
-                                    // and then drop our bones including children onto that one?
-                                    // idk. Something can be done here. I sure don't know myself... - @989onan
+                                    //This code finds the bone list that this model has and adds it to a list of bone ID's
+                                    //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
+                                    //this way, we know which id's go to which bones. Then it's as easy as putting them together.
 
 
-                                    //some random code idk
-                                    /*otherid = line.Split(':')[1].Split('}')[0].Trim();
-                                    if (!Entities.ContainsKey(otherid))
-                                    {
-                                        Entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
-                                    }
-                                    Slot bone = ((Slot)Entities[otherid]);
-
-                                    List<Component> slotcomponents = new List<Component>();
-                                    foreach(Component component in bone.Components)
-                                    {
-                                        slotcomponents.Add(component);
-                                    }
-
-                                    foreach(Component component in slotcomponents)
-                                    {
-                                        bone.MoveComponent(component);
-                                    }*/
+                                    
+                                    
+                                    tempBoneArrayIDs.Add(line.Split(':')[1].Split('}')[0].Trim());
 
 
 
+                                }
+                                else
+                                {
+                                    currentEntityImportTaskHolder.boneArrayIDs = tempBoneArrayIDs;
+                                    TasksTemp.Add(currentEntityImportTaskHolder);
                                 }
                             }
 
@@ -713,7 +866,22 @@ namespace UnityPackageImporter {
                                     //yes this may run the importer again
                                     try
                                     {
-                                        BatchFolderImporter.BatchImport(((Slot)Entities[otherid]), new List<String>(new String[] { __state.AssetIDDict[meshid] }), false /*<- here we want false because this code wouldn't run if it was false to begin with.*/);
+                                        //Comment: 97843789213894 - by @989onan
+                                        /*TODO: We are making badness here, since we are importing the model every time for every mesh, making
+                                        this complex for no good reason. We should import the file once and then record where the other meshes go, and then do the post importing
+                                        step with those. Then we should then reassign the skinned mesh renderers and create the VRIK with our prefab bones.
+                                        Also, using the meta file we could easily use the humanoid data to create the VRIK, and skip froox engine badness with 
+                                        detecting bones via it's own code.
+                                        And I wish we could import skinned mesh renderers directly from files and then inject our own stuff after that. Would make this easier...
+                                        Also, if we can find a way to just assign the VRIK it's bones from our meta file and then just hit """"Start IK"""" that would be ideal
+                                        */
+                                        Task result = ImportModelUnity(((Slot)Entities[otherid]), __state.AssetIDDict[meshid]);
+
+                                        currentEntityImportTaskHolder = new ImportTaskStruct(result, ((Slot)Entities[otherid]), meshid, new PrefabData());
+
+                                        
+
+
                                     }
                                     catch (Exception e)
                                     {
@@ -741,10 +909,28 @@ namespace UnityPackageImporter {
 
 
 
+                PrefabData prefabdata = new PrefabData(Entities, EntityChildID_To_EntityParentID, prefabslot);
 
+                foreach(var task in TasksTemp)
+                {
+                    var newtask = task;
+                    newtask.prefabdata = prefabdata;
+                    Tasks.Add(newtask);
+                }
 
+                return prefabdata;
+            }
 
-                return prefabslot;
+            private static Task ImportModelUnity(Slot slot, string v)
+            {
+                ModelImportSettings result = ModelImportSettings.PBS(true,true,true,false,true,false);
+
+                result.SetupIK = true;
+                result.ImportBones = true;
+
+                Task importthread = ModelImporter.ImportModelAsync(v, slot, result, null, null);
+
+                return importthread;
             }
 
             private static IEnumerable<String> EndMethod(Slot root, IEnumerable<String> files, bool shouldBeRaw, shareddata __state)
@@ -760,7 +946,9 @@ namespace UnityPackageImporter {
                 foreach (string Prefab in __state.ListOfPrefabs)
                 {
                     Msg("Start prefab import");
-                    LoadPrefabUnity(files, __state, root, __state.FileName_To_AssetIDDict[Prefab]);
+                    PrefabData result = LoadPrefabUnity(files, __state, root, __state.FileName_To_AssetIDDict[Prefab]); //did this so something can be done with it later.
+                    
+
                     Msg("End prefab import");
 
 
