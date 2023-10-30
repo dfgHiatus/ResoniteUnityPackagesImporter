@@ -8,8 +8,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime;
 using System.Threading.Tasks;
 using UnityPackageImporter.Extractor;
+using Assimp;
+using Assimp.Configs;
+using UnityPackageImporter.Models;
+using static FrooxEngine.ModelImporter;
+using Mono.Cecil.Cil;
+using static FrooxEngine.ModelExporter;
 
 namespace UnityPackageImporter;
 
@@ -109,6 +116,7 @@ public class UnityPackageImporter : ResoniteMod
 
         private static List<ImportTaskClass> Tasks = new List<ImportTaskClass>();
 
+
         public static bool Prefix(ref IEnumerable<string> files)
         {
             List<string> hasUnityPackage = new List<string>();
@@ -185,7 +193,8 @@ public class UnityPackageImporter : ResoniteMod
             Msg("Waiting on Import Tasks");
             foreach (ImportTaskClass task in Tasks)
             {
-                task.ImportTask.Wait();
+
+                task.fileImportTask.task.Wait();
             }
 
             //Now time to merge.
@@ -194,61 +203,69 @@ public class UnityPackageImporter : ResoniteMod
             {
                 Slot taskSlot = task.ImportRoot;
 
-                List<string> ListOfPrefabs = __state.ListOfPrefabs;
-                List<string>  ListOfMetas = __state.ListOfMetas;
-                Dictionary<string, string> AssetIDDict = __state.AssetIDDict;
-                Dictionary<string, string> FileName_To_AssetIDDict = __state.FileName_To_AssetIDDict;
-
                 //EXPLAINATION OF THIS CODE:
-                //since we can make froox engine import any file, we can abuse this and delete everything froox engine imports except for the
-                //model mesh. Then we can reassign the bones to the ones we made and set up a new VRIK
+                //we are using the froox engine data made from assimp to force our model onto what we generated instead of
+                //what froox engine made. This is better than asking froox engine to fully import the model for us
+                //we get more control this way.
 
-                var meshname = taskSlot.Name;
 
-                Slot meshrenderslot = taskSlot.FindChild(taskSlot.Name, false, false, 3);
-                SkinnedMeshRenderer skinnedmeshrender = null;
-                try 
+                SkinnedMeshRenderer ournewmesh;
+
+                try
                 {
-                    skinnedmeshrender = (SkinnedMeshRenderer) meshrenderslot.GetComponent(typeof(SkinnedMeshRenderer), false);
+                    ournewmesh = taskSlot.CopyComponent<SkinnedMeshRenderer>(task.fileImportTask.data.skinnedRenderers.First(i => i.Slot.Name == taskSlot.Name));
                 }
-                catch (Exception)
+                catch(Exception e)
                 {
-                    continue; // we don't need to merge the bones so tf cares. Later when we auto add materials, TODO: remove this later.
+                    Msg("Import task for file \"" + task.fileImportTask.file + "\" tried to put its skinnedMeshRenderer Component called \"" + taskSlot.Name + "\" under a slot imported by the prefab importer, but it errored! Here's the stacktrace:");
+                    Msg(e.StackTrace);
                 }
 
-                meshrenderslot.SetParent(task.ImportRoot.Parent);
-                task.ImportRoot.Destroy();
-               
+                
+
+
+                
+
+                
+
+                //var meshname = taskSlot.Name;
+
                 var foundvrik = task.Prefabdata.RootSlot.Components.Any(i => i.GetType() == typeof(VRIK));
-
-                //TODO: Do away with all of this. Use the .Meta file from our asset and assign the bones that way.
-                //Also, see comment 97843789213894
-                BipedRig rigtype = new BipedRig();
 
                 if (!foundvrik)
                 {
-                    VRIK vrik = task.Prefabdata.RootSlot.AttachComponent<VRIK>();
-                    
-                    Rig.BoneNode rootbone = new Rig.BoneNode(task.Prefabdata.RootSlot.Children.ElementAt(0).Children.ElementAt(0), BodyNode.Hips);
+                    //if we haven't set up VRIK, we also haven't set up our custom bones.
+                    foreach (SkinnedMeshRenderer skinnedMeshrender in task.fileImportTask.data.skinnedRenderers)
+                    {
+                        SkinnedMeshRenderer skinnedmeshrenderobj = skinnedMeshrender;
+                        for (int index = 0; index < skinnedmeshrenderobj.Bones.Count(); index++)
+                        {
+                            Slot otherBone = (Slot)task.Prefabdata.Entities[
+                                task.Prefabdata.EntityChildID_To_EntityParentID[task.BoneArrayIDs[index]]
+                            ];
 
-                    // TODO Get biped info!
-                    rigtype = BipedRig.ClassifyBiped(task.Prefabdata.RootSlot, rootbone);
+                            //this takes the id of the current bone slot, which is the transform component, gets it's parent which is the game object id, then turns that into a slot using entities.
+                            skinnedmeshrenderobj.Bones[index] = otherBone;
+
+                        }
+
+                    }
+                    //this creates our biped rig under the slot we specify. in this case, it is the root.
+                    //it scans the file's metadata to make it work.
+                    //this MetaDataFile object class also gives us access to the biped rig component directly if desired.
+                    MetaDataFile metadata = MetaDataFile.ScanFile(Path.ChangeExtension(task.fileImportTask.file, ".meta"), task.Prefabdata.RootSlot);
+                    VRIK vrik = task.Prefabdata.RootSlot.AttachComponent<VRIK>();
+
+                    
+                    
+                    
                     vrik.Solver.SimulationSpace.Target = task.Prefabdata.RootSlot.Parent;
                     vrik.Solver.OffsetSpace.Target = task.Prefabdata.RootSlot.Parent;
-                    vrik.Initiate();
+                    vrik.Initiate(); //create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot, 
                 }
 
                 // This makes sure the bones related to this skinned mesh renderer from the prefab get put onto the skinned mesh renderer that FrooxEngine made
-                for (int index = 0; index < skinnedmeshrender.Bones.Count(); index++)
-                {
-                    Slot otherBone = (Slot) task.Prefabdata.Entities[
-                        task.Prefabdata.EntityChildID_To_EntityParentID[task.BoneArrayIDs[index]]
-                    ];
-                    
-                    //this takes the id of the current bone slot, which is the transform component, gets it's parent which is the game object id, then turns that into a slot using entities.
-                    skinnedmeshrender.Bones[index] = otherBone;
-
-                }
+                
             }
             Msg("Finished Handling Lagged Import Tasks");
             Tasks.Clear(); // Very important since it's a static variable! This needs to be called at least at the end of importing.
@@ -279,6 +296,8 @@ public class UnityPackageImporter : ResoniteMod
                 AssetIDDict = new Dictionary<string, string>(),
                 FileName_To_AssetIDDict = new Dictionary<string, string>()
             };
+
+
 
             if (shouldBeRaw)
             {
@@ -315,6 +334,9 @@ public class UnityPackageImporter : ResoniteMod
             return ListOfNotMetasAndPrefabs.ToArray(); 
         }
 
+
+        
+
         private static PrefabData LoadPrefabUnity(IEnumerable<string> files, SharedData __state, Slot parentUnder, string PrefabID)
         {
             string prefab = __state.AssetIDDict.GetValueSafe(PrefabID);
@@ -347,7 +369,7 @@ public class UnityPackageImporter : ResoniteMod
              * inGravityModifier = 2
              * inEmissionModule = 3
              */
-
+            //need to do particle system parsing...
             //int particletag = -1;
 
             //skinned mesh renderer tags
@@ -466,6 +488,118 @@ public class UnityPackageImporter : ResoniteMod
 
                         break;
                     case "Transform":
+
+                        //if only starts with worked with a switch
+                        if (line.StartsWith("  m_GameObject: "))
+                        {
+                            /*DebugMSG*/
+                            Msg("found game object parent ref id, checking");
+                            otherid = line.Split(':')[2].Split('}')[0].Trim();
+                            /*DebugMSG*/
+                            Msg("id is \"" + otherid + "\"");
+                            if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
+                            {
+                                entityChildID_To_EntityParentID.Add(entityID, otherid);
+                            }
+
+
+
+                        }
+                        else if (line.StartsWith("  m_LocalRotation:"))
+                        {
+                            float x = 0;
+                            float y = 0;
+                            float z = 0;
+                            float w = 0;
+
+                            //hehe. here's the reference line from a prefab to help who's reading this garbage to understand: "  m_LocalRotation: {x: -0.013095013, y: -0.06099344, z: -0.00031075111, w: 0.99805224}"
+                            float.TryParse(line.Split(',')[0].Split(':')[2].Trim(), out x);
+                            float.TryParse(line.Split(',')[1].Split(':')[1].Trim(), out y);
+                            float.TryParse(line.Split(',')[2].Split(':')[1].Trim(), out z);
+                            float.TryParse(line.Split(',')[3].Split(':')[1].Split('}')[0].Trim(), out w);
+
+                            ((Slot)entities[otherid]).LocalRotation = new floatQ(x, y, z, w);
+                        }
+                        else if (line.StartsWith("  m_LocalPosition:"))
+                        {
+                            float x = 0;
+                            float y = 0;
+                            float z = 0;
+
+                            //hehe. here's the reference line from a prefab to help who's reading this garbage to understand: "  m_LocalPosition: {x: -0.013095013, y: -0.06099344, z: -0.00031075111}"
+                            float.TryParse(line.Split(',')[0].Split(':')[2].Trim(), out x);
+                            float.TryParse(line.Split(',')[1].Split(':')[1].Trim(), out y);
+                            float.TryParse(line.Split(',')[2].Split(':')[1].Split('}')[0].Trim(), out z);
+
+                            ((Slot)entities[otherid]).LocalPosition = new float3(x, y, z);
+
+
+                        }
+                        else if (line.StartsWith("  m_LocalScale:"))
+                        {
+                            float x = 0;
+                            float y = 0;
+                            float z = 0;
+
+                            //hehe. here's the reference line from a prefab to help who's reading this garbage to understand: "  m_LocalScale: {x: -0.013095013, y: -0.06099344, z: -0.00031075111}"
+                            float.TryParse(line.Split(',')[0].Split(':')[2].Trim(), out x);
+                            float.TryParse(line.Split(',')[1].Split(':')[1].Trim(), out y);
+                            float.TryParse(line.Split(',')[2].Split(':')[1].Split('}')[0].Trim(), out z);
+
+                            ((Slot)entities[otherid]).LocalScale = new float3(x, y, z);
+                        }
+                        else if (line.StartsWith("  m_Father:"))
+                        {
+
+                            //finding this transform object's parent slot. if not, store to a temp array;
+
+                            //here the child transform block could have been made before or after the transform, making finding the slot first impossible. We have to parent later if we can't find it.
+
+                            string parentTransformComponentID = line.Split(':')[2].Split('}')[0].Trim();
+
+                            if (entityChildID_To_EntityParentID.ContainsKey(parentTransformComponentID))
+                            {
+                                ((Slot)entities[otherid]).SetParent(((Slot)entities[entityChildID_To_EntityParentID[parentTransformComponentID]]), false);
+                            }
+                            else
+                            {
+                                if (!orphanTransforms_Child_To_Parent.ContainsKey(entityID))
+                                {
+                                    orphanTransforms_Child_To_Parent.Add(entityID, parentTransformComponentID);
+                                }
+
+                            }
+
+                            //this is garbage, but unity prefabs have forced my hand
+                            //basically children transforms can appear after the transform tries to reference it
+                            //in coding this is awful. So I have to iterate over freaking everything to find ones that were instantiated
+                            //before their children. Pain. - @989onan
+                            List<string> removelist = new List<string>();
+                            foreach (var pair in orphanTransforms_Child_To_Parent.AsParallel())
+                            {
+                                if (pair.Value == entityID)
+                                {
+                                    try
+                                    {
+                                        ((Slot)entities[entityChildID_To_EntityParentID[pair.Key]]).SetParent(((Slot)entities[otherid]), false);
+                                        removelist.Add(pair.Key);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        /*DebugMSG*/
+                                        Msg(e.StackTrace);
+                                    }
+                                }
+
+
+                            }
+                            foreach (string key in removelist)
+                            {
+                                orphanTransforms_Child_To_Parent.Remove(key);
+                            }
+
+                        }
+                        break;
                     case "ParticleSystem":
                         if (line.StartsWith("  m_GameObject: "))
                         {
@@ -556,22 +690,39 @@ public class UnityPackageImporter : ResoniteMod
 
                         if (line.StartsWith("  m_Mesh: "))
                         {
-                            /*DebugMSG*/Msg("found mesh ref id");
-                            var meshid = line.Split(':')[3].Split(',')[0].Trim();//this is on purpose, because a line for the m_Mesh looks like this: "  m_Mesh: {fileID: 4300000, guid: d6ba91ccc11280d4da45a2d1c17d88ba, type: 3}"
-                            /*DebugMSG*/Msg("mesh ref id is: \""+ meshid + "\"");
+                            /*DebugMSG*/
+                            Msg("found mesh, parsing");
+                            var meshFileID = line.Split(':')[2].Split(',')[0].Trim();//this is on purpose, because a line for the m_Mesh looks like this: "  m_Mesh: {fileID: 4300000, guid: d6ba91ccc11280d4da45a2d1c17d88ba, type: 3}"
+                            var modelFileGUID = line.Split(':')[3].Split(',')[0].Trim();
+                            /*DebugMSG*/
+                            Msg("mesh ref id is: \"" + modelFileGUID + "\"");
                             var meshtype = int.Parse(line.Split(':')[4].Split('}')[0].Trim()); //same here
 
                             if (meshtype == 3)
                             {
-                                //this will load the mesh, which is actually an fbx, and load it into the slot this component should be on.
-                                //yes this may run the importer again
-                                try
-                                {
-                                    Task result = ImportModelUnity(((Slot)entities[otherid]), __state.AssetIDDict[meshid]);
-
-                                    ImportTaskClass finalResultThing = new ImportTaskClass(result, ((Slot)entities[otherid]), meshid, new PrefabData());
-
-                                    tasksTemp.Add(finalResultThing);
+                                //this will load the mesh, which is actually a file, and load it into the slot this component should be on.
+                                try{
+                                    var allTasks = new List<ImportTaskClass>();
+                                    allTasks.AddRange(tasksTemp);
+                                    allTasks.AddRange(Tasks);
+                                    ImportTaskClass importingExists;
+                                    try//if this try fails, then a not found exception should have been thrown, allowing us to continue
+                                    {
+                                        importingExists = allTasks.First(i => i.fileImportTask.assetID.Equals(modelFileGUID));
+                                        currentEntityImportTaskHolder = new ImportTaskClass(importingExists.fileImportTask,
+                                            meshFileID,
+                                            new PrefabData());
+                                        allTasks.Clear();
+                                    }
+                                    catch(InvalidOperationException)
+                                    {//if not found, make a new one.
+                                        
+                                        currentEntityImportTaskHolder = new ImportTaskClass(
+                                        new FileImportHelperTask(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
+                                            meshFileID,
+                                            new PrefabData());
+                                        allTasks.Clear();
+                                    }
 
                                 }
                                 catch(Exception e)
@@ -639,36 +790,46 @@ public class UnityPackageImporter : ResoniteMod
                         else if (line.StartsWith("  m_Mesh: "))
                         {
                             /*DebugMSG*/Msg("found mesh, parsing");
-                            var meshID = line.Split(':')[3].Split(',')[0].Trim();//this is on purpose, because a line for the m_Mesh looks like this: "  m_Mesh: {fileID: 4300000, guid: d6ba91ccc11280d4da45a2d1c17d88ba, type: 3}"
-                            /*DebugMSG*/Msg("mesh ref id is: \""+ meshID + "\"");
+                            var meshFileID = line.Split(':')[2].Split(',')[0].Trim();//this is on purpose, because a line for the m_Mesh looks like this: "  m_Mesh: {fileID: 4300000, guid: d6ba91ccc11280d4da45a2d1c17d88ba, type: 3}"
+                            var modelFileGUID = line.Split(':')[3].Split(',')[0].Trim();
+                            /*DebugMSG*/
+                            Msg("mesh ref id is: \""+ modelFileGUID + "\"");
                             var meshtype = int.Parse(line.Split(':')[4].Split('}')[0].Trim()); //same here
 
                             if (meshtype == 3)
                             {
                                 //this will load the mesh, which is actually an fbx, and load it into the slot this component should be on.
                                 //yes this may run the importer again
+                                //this will load the mesh, which is actually a file, and load it into the slot this component should be on.
                                 try
                                 {
-                                    //Comment: 97843789213894 - by @989onan
-                                    /*TODO: We are making badness here, since we are importing the model every time for every mesh, making
-                                    this complex for no good reason. We should import the file once and then record where the other meshes go, and then do the post importing
-                                    step with those. Then we should then reassign the skinned mesh renderers and create the VRIK with our prefab bones.
-                                    Also, using the meta file we could easily use the humanoid data to create the VRIK, and skip froox engine badness with 
-                                    detecting bones via it's own code.
-                                    And I wish we could import skinned mesh renderers directly from files and then inject our own stuff after that. Would make this easier...
-                                    Also, if we can find a way to just assign the VRIK it's bones from our meta file and then just hit """"Start IK"""" that would be ideal
-                                    */
-                                    Task result = ImportModelUnity((Slot)entities[otherid], __state.AssetIDDict[meshID]);
+                                    var allTasks = new List<ImportTaskClass>();
+                                    allTasks.AddRange(tasksTemp);
+                                    allTasks.AddRange(Tasks);
+                                    ImportTaskClass importingExists;
+                                    try//if this try fails, then a not found exception should have been thrown, allowing us to continue
+                                    {
+                                        importingExists = allTasks.First(i => i.fileImportTask.assetID.Equals(modelFileGUID));
+                                        currentEntityImportTaskHolder = new ImportTaskClass(importingExists.fileImportTask,
+                                            meshFileID,
+                                            new PrefabData());
+                                        allTasks.Clear();
+                                    }
+                                    catch (InvalidOperationException)
+                                    {//if not found, make a new one.
 
-                                    currentEntityImportTaskHolder = new ImportTaskClass(
-                                        result,
-                                        (Slot)entities[otherid],
-                                        meshID,
-                                        new PrefabData());
+                                        currentEntityImportTaskHolder = new ImportTaskClass(
+                                        new FileImportHelperTask(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
+                                            meshFileID,
+                                            new PrefabData());
+                                        allTasks.Clear();
+                                    }
+
                                 }
                                 catch (Exception e)
                                 {
-                                    Msg("Could not find mesh reference!!! Did you forget to import the model along with the prefab at the same time?");
+                                    Msg("could not find mesh reference!!! Did you forget to import the model along with the prefab at the same time?");
+                                    Msg("ERROR BELOW:");
                                     Msg(e.StackTrace);
                                 }
 
