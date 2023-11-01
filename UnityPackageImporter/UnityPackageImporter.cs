@@ -17,6 +17,10 @@ using UnityPackageImporter.Models;
 using static FrooxEngine.ModelImporter;
 using Mono.Cecil.Cil;
 using static FrooxEngine.ModelExporter;
+using FrooxEngine.Undo;
+using static FrooxEngine.Rig;
+using Mono.Cecil;
+using static FrooxEngine.MeshUploadHint;
 
 namespace UnityPackageImporter;
 
@@ -145,13 +149,14 @@ public class UnityPackageImporter : ResoniteMod
 
 
             //scan literally everything selected with our code for importing prefabs
+
             scanthesefiles.AddRange(notUnityPackage);
             //add everything in the unity package for our file scan
             foreach (var dir in DecomposeUnityPackages(hasUnityPackage.ToArray()))
                 scanthesefiles.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories).ToArray());
 
-            /*DebugMSG*/Msg("CALLING The pre import patch");
-            scanthesefiles = startmethod(slot,
+            /*DebugMSG*/Msg("CALLING FindPrefabsAndMetas");
+            scanthesefiles = FindPrefabsAndMetas(slot,
                 scanthesefiles,
                 Config.GetValue(importAsRawFiles), out __state).ToList();
 
@@ -159,10 +164,21 @@ public class UnityPackageImporter : ResoniteMod
 
 
 
-            List<string> yeetfiles = EndMethod(slot, scanthesefiles, Config.GetValue(importAsRawFiles), __state).ToList();
+            List<string> yeetfiles = ImportPrefabStructures(slot, scanthesefiles, Config.GetValue(importAsRawFiles), __state).ToList();
 
-            /*DebugMSG*/Msg("Start handling Import Tasks");
-            slot.StartCoroutine(FinishPrefabWrapper(slot, scanthesefiles, __state));
+
+            //our patch can run ourselves using batch import if we are importing files alongside our prefabs
+            //because of the checks above, when we run batch import which runs ourselves again, we won't have prefabs in our state.
+            //using this, we can detect if we are importing prefabs (Which would be the first pass of ourselves)
+            //and not cause multithreading badness
+            //if this was not here, we would run our prefab handler every time another model/texture is imported, causing
+            //huge performance issues and errors.
+            if(__state.ListOfPrefabs.Count > 0)
+            {
+                /*DebugMSG*/Msg("Start handling Import Tasks");
+                slot.StartGlobalTask(async () => await AttachAssetsToPrefabWrapper(slot, scanthesefiles, __state));
+            }
+            
 
 
             scanthesefiles = yeetfiles;
@@ -181,103 +197,227 @@ public class UnityPackageImporter : ResoniteMod
             return true;
         }
 
-        private static IEnumerator<Context> FinishPrefabWrapper(Slot root, IEnumerable<string> files, SharedData __state)
+        private static async Task AttachAssetsToPrefabWrapper(Slot root, IEnumerable<string> files, SharedData __state)
         {
-            __state.ListOfMetas.Add("hello");
-            yield return Context.WaitFor(FinishPrefab(root, files, __state));
-            yield break;
+            await default(ToBackground);
+            await AttachAssetsToPrefab(root, files, __state);
+            
         }
 
-        private static IEnumerator<Context> FinishPrefab(Slot root, IEnumerable<string> files, SharedData __state)
+        private static async Task AttachAssetsToPrefab(Slot root, IEnumerable<string> files, SharedData __state)
         {
-            Msg("Waiting on Import Tasks");
-            foreach (ImportTaskClass task in Tasks)
-            {
+            await default(ToBackground);
 
-                task.fileImportTask.task.Wait();
+            Msg("Gathering wait jobs");
+            List<Task> waiters = new List<Task>();
+            foreach (var t in Tasks)
+            {
+                if (t != null)
+                {
+                    Msg("Has file import task" + (t.fileImportTask != null).ToString());
+                    if (t.fileImportTask != null) {
+                        Msg("Has file import task's task" + (t.fileImportTask.task != null).ToString());
+                    }
+                    if (!waiters.Contains(t.fileImportTask.task))
+                    {
+                        waiters.Add(t.fileImportTask.task);
+                    }
+                    
+                }
             }
+            Msg("Waiting on asset import tasks now");
+            Task.WaitAll(waiters.ToArray());
 
             //Now time to merge.
             Msg("Merging bones");
+
+            List<Slot> oldSlots = new List<Slot>();
+
+            await default(ToWorld);
             foreach (ImportTaskClass task in Tasks)
             {
+                Msg("Start task finalization");
+                Msg("Task is valid?" + (task != null).ToString());
+
+                Msg("Grabbing Task Slot for task " + task.meshFileID);
                 Slot taskSlot = task.ImportRoot;
+                Msg("is task slot valid? " + (null != taskSlot).ToString());
 
                 //EXPLAINATION OF THIS CODE:
                 //we are using the froox engine data made from assimp to force our model onto what we generated instead of
                 //what froox engine made. This is better than asking froox engine to fully import the model for us
                 //we get more control this way.
 
-
+                Msg("Finding our mesh for this task");
                 SkinnedMeshRenderer ournewmesh;
 
                 try
                 {
-                    ournewmesh = taskSlot.CopyComponent<SkinnedMeshRenderer>(task.fileImportTask.data.skinnedRenderers.First(i => i.Slot.Name == taskSlot.Name));
+                    //this allows us to pull the skinned mesh renderers we imported and then delete their slots later.
+                    SkinnedMeshRenderer originalSkinnedRenderer = task.fileImportTask.data.skinnedRenderers.First(i => i.Slot.Name == taskSlot.Name);
+                    Slot oldSlot = originalSkinnedRenderer.Slot;
+                    ournewmesh = taskSlot.CopyComponent(originalSkinnedRenderer);
+                    if (!oldSlots.Contains(oldSlot))
+                    {
+                        oldSlots.Add(oldSlot);
+                    }
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
+                    Msg("Imported mesh failed to find it's prefab counterpart!");
                     Msg("Import task for file \"" + task.fileImportTask.file + "\" tried to put its skinnedMeshRenderer Component called \"" + taskSlot.Name + "\" under a slot imported by the prefab importer, but it errored! Here's the stacktrace:");
                     Msg(e.StackTrace);
                 }
 
-                
+                Rig rig = task.Prefabdata.RootSlot.GetComponent<Rig>();
+                if(rig == null) {
+                    rig = task.Prefabdata.RootSlot.AttachComponent<Rig>();
+                }
 
-
-                
-
-                
-
-                //var meshname = taskSlot.Name;
-
-                var foundvrik = task.Prefabdata.RootSlot.Components.Any(i => i.GetType() == typeof(VRIK));
-
-                if (!foundvrik)
+                Msg("finding this task's Prefab Data");
+                var prefab = task.Prefabdata;
+                foreach (SkinnedMeshRenderer skinnedMeshrender in task.fileImportTask.data.skinnedRenderers)
                 {
-                    //if we haven't set up VRIK, we also haven't set up our custom bones.
-                    foreach (SkinnedMeshRenderer skinnedMeshrender in task.fileImportTask.data.skinnedRenderers)
-                    {
-                        SkinnedMeshRenderer skinnedmeshrenderobj = skinnedMeshrender;
-                        for (int index = 0; index < skinnedmeshrenderobj.Bones.Count(); index++)
+                    if (!(skinnedMeshrender.Bones.Count() > 0)) {
+                        skinnedMeshrender.Bones.Clear();
+                        Msg("setting up mesh: \"" + skinnedMeshrender.Slot.Name + "\"");
+                        for (int index = 0; index < task.BoneArrayIDs.Count(); index++)
                         {
-                            Slot otherBone = (Slot)task.Prefabdata.Entities[
-                                task.Prefabdata.EntityChildID_To_EntityParentID[task.BoneArrayIDs[index]]
-                            ];
-
                             //this takes the id of the current bone slot, which is the transform component, gets it's parent which is the game object id, then turns that into a slot using entities.
-                            skinnedmeshrenderobj.Bones[index] = otherBone;
-
+                            Slot otherBone = (Slot)prefab.Entities[
+                                prefab.EntityChildID_To_EntityParentID[task.BoneArrayIDs[index]]
+                            ];
+                            rig.Bones.AddUnique(otherBone);
+                            skinnedMeshrender.Bones.Add().Target = otherBone;
+                            
+                        }
+                        while (!skinnedMeshrender.Mesh.IsAssetAvailable)
+                        {
+                            await Task.Delay(1000);
                         }
 
+                        skinnedMeshrender.SetupBlendShapes();
                     }
+
+                }
+
+                //var meshname = taskSlot.Name;
+                var foundvrik = null != task.Prefabdata.RootSlot.GetComponent(typeof(VRIK));
+                MetaDataFile metadata = null;
+                if (!task.fileImportTask.isBiped.HasValue)
+                {
+                    Msg("checking biped data once for the first time, and only once for file: \""+ task.fileImportTask.file+"\"");
+                    Msg("Reading this Model File's MetaData");
                     //this creates our biped rig under the slot we specify. in this case, it is the root.
                     //it scans the file's metadata to make it work.
-                    //this MetaDataFile object class also gives us access to the biped rig component directly if desired.
-                    MetaDataFile metadata = MetaDataFile.ScanFile(Path.ChangeExtension(task.fileImportTask.file, ".meta"), task.Prefabdata.RootSlot);
-                    VRIK vrik = task.Prefabdata.RootSlot.AttachComponent<VRIK>();
+                    //this MetaDataFile object class gives us access to the biped rig component directly if desired
+                    //but we're using it to also get our global scale.
+                    metadata = MetaDataFile.ScanFile(task.fileImportTask.file + ".meta", task.Prefabdata.RootSlot);
+                    task.fileImportTask.isBiped = metadata.modelBoneHumanoidAssignments.IsBiped;
+                }
+                Msg("Finding if we set up VRIK and are biped.");
+                //this has value shouldn't throw an error because it was assigned above.
+                if (!foundvrik && task.fileImportTask.isBiped.Value)
+                {
+                    Msg("We have not set up vrik!");
+
+
+                    //put our stuff under a slot called rootnode so froox engine can set this model up as an avatar
+
+                    Slot rootnode = task.Prefabdata.RootSlot.AddSlot("RootNode");
+                    rootnode.LocalScale *= metadata.GlobalScale;
+                    foreach (Slot prefabImmediateChild in task.Prefabdata.RootSlot.Children.ToArray())
+                    {
+                        prefabImmediateChild.SetParent(rootnode, false);
+                    }
+
+
+
+                    Msg("Scaling up/down armature to file's global scale.");
+                    //make the bone distances bigger since this model's file may have been exported 100X smaller
+                    foreach (Slot slot in task.Prefabdata.RootSlot.GetAllChildren(false).ToArray()) {
+                        if(null == slot.GetComponent<SkinnedMeshRenderer>())
+                        {
+                            Msg("scaling bone " + slot.Name);
+                            slot.LocalPosition /= metadata.GlobalScale;
+                        }
+                        
+                        
+
+                        if(BodyNode.NONE != metadata.modelBoneHumanoidAssignments.Bones.FirstOrDefault(i => i.Value.Target.Name.Equals(slot.Name)).key)
+                        {
+                            Msg("finding length of bone " + slot.Name);
+                            float3 v = float3.Zero;
+                            Msg("creating colliders for bone " + slot.Name);
+                            foreach (Slot child in slot.Children.ToArray())
+                            {
+                                float3 globalPoint = child.GlobalPosition;
+                                v = slot.GlobalPointToLocal(in globalPoint);
+                                if (v.Magnitude > 0.1f)
+                                {
+                                    break;
+                                }
+                            }
+                            foreach (Slot child in slot.Children.ToArray())
+                            {
+                                float3 globalPoint = child.GlobalPosition;
+                                float value = v.Magnitude * 0.125f;
+                                float magnitude = v.Magnitude;
+
+                                v = slot.GlobalPointToLocal(in globalPoint);
+                                float3 localPosition = v * 0.5f;
+                                Slot slotcollider = slot.AddSlot(slot.Name + " Collider");
+                                slotcollider.LocalPosition = localPosition;
+                                floatQ a = floatQ.LookRotation(in v);
+                                float3 globalPoint2 = float3.Up;
+                                float3 to = float3.Forward;
+                                floatQ b = floatQ.FromToRotation(in globalPoint2, in to);
+                                slotcollider.LocalRotation = a * b;
+
+
+                                CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
+                                capsuleCollider.Radius.Value = value;
+                                capsuleCollider.Height.Value = magnitude;
+                            }
+                        }
+                        
+                    }
 
                     
-                    
-                    
-                    vrik.Solver.SimulationSpace.Target = task.Prefabdata.RootSlot.Parent;
-                    vrik.Solver.OffsetSpace.Target = task.Prefabdata.RootSlot.Parent;
+
+
+
+                    Msg("attaching VRIK");
+                    VRIK vrik = prefab.RootSlot.AttachComponent<VRIK>();
+
+                    Msg("Initializing VRIK");
+                    vrik.Solver.SimulationSpace.Target = prefab.RootSlot.Parent;
+                    vrik.Solver.OffsetSpace.Target = prefab.RootSlot.Parent;
                     vrik.Initiate(); //create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot, 
+                    prefab.RootSlot.AttachComponent<DestroyRoot>();
+                    prefab.RootSlot.AttachComponent<ObjectRoot>();
+
                 }
 
                 // This makes sure the bones related to this skinned mesh renderer from the prefab get put onto the skinned mesh renderer that FrooxEngine made
                 
             }
+            foreach (Slot oldSlot in oldSlots.ToArray())
+            {
+                oldSlot.PrepareDestruction(); //so that we don't destroy now and cause a removed item during iteration exception.
+            }
+
+
+            await default(ToBackground);
             Msg("Finished Handling Lagged Import Tasks");
             Tasks.Clear(); // Very important since it's a static variable! This needs to be called at least at the end of importing.
-            yield return Context.ToWorld();
-            yield break;
         }
 
-        private static IEnumerable<string> startmethod(Slot root, IEnumerable<string> files, bool forceUnknown, out SharedData __state)
+        private static IEnumerable<string> FindPrefabsAndMetas(Slot root, IEnumerable<string> files, bool forceUnknown, out SharedData __state)
         {
             bool shouldBeRaw = forceUnknown;
             Slot parentUnder = root;
-            /*DebugMSG*/Msg("Start pre import patch");
+            /*DebugMSG*/Msg("Start Finding Prefabs and Metas");
             //remove the meta files from the rest of the code later on in the return statements, since we don't want to let the importer bring in fifty bajillion meta files...
             List<string> ListOfNotMetasAndPrefabs = new List<string>();
             foreach (var file in files)
@@ -330,7 +470,7 @@ public class UnityPackageImporter : ResoniteMod
             //now the files are found, we will use these in our PostFix. We want to yeet these from the normal FrooxEngine import process, but keep them for last
             //so we can read them and do some wizard magic with the files corrosponding with our prefabs at the end
 
-            Msg("end preimport patch unitypackage");
+            Msg("end Finding Prefabs and Metas");
             return ListOfNotMetasAndPrefabs.ToArray(); 
         }
 
@@ -341,9 +481,7 @@ public class UnityPackageImporter : ResoniteMod
         {
             string prefab = __state.AssetIDDict.GetValueSafe(PrefabID);
             var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileNameWithoutExtension(prefab));
-            var tempslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(TEMP_ORPHAN_NODES_SLOT_NAME);
-            prefabslot.SetParent(parentUnder);
-            tempslot.SetParent(prefabslot);
+            prefabslot.SetParent(parentUnder,false);
 
             //begin the parsing of our prefabs.
 
@@ -427,6 +565,9 @@ public class UnityPackageImporter : ResoniteMod
                             Msg("Start SkinnedMeshRenderer interpreting");
                             inBoneSection = false;
                             break;
+                        default:
+                            Msg("Unidentified component \""+ typeofobj+"\"");
+                            break;
                     }
 
                     continue;
@@ -467,11 +608,22 @@ public class UnityPackageImporter : ResoniteMod
                         {
                             /*DebugMSG*/Msg("found name for game object, setting");
                             ((Slot)entities[entityID]).Name = line.Remove(0, "  m_Name: ".Length);
+
+                            if (((Slot)entities[entityID]).Name.Equals(Path.GetFileNameWithoutExtension(prefab))){
+                                prefabslot = (Slot)entities[entityID];
+                                prefabslot.PositionInFrontOfUser(); //to put our import in front of us.
+                            }
+                                
                         }
                         else if (line.StartsWith("  m_TagString: "))
                         {
+                            //idk if we need this, but it's cool.
                             /*DebugMSG*/Msg("found tag for game object, setting");
-                            ((Slot)entities[entityID]).Tag = line.Remove(0, "  m_TagString: ".Length); //idk if we need this, but it's cool.
+                            string tag = line.Remove(0, "  m_TagString: ".Length);
+                            if (!tag.Equals("Untagged"))
+                            {
+                                ((Slot)entities[entityID]).Tag = tag; 
+                            }
                         }
                         else if (line.StartsWith("  m_IsActive: "))
                         {
@@ -519,6 +671,10 @@ public class UnityPackageImporter : ResoniteMod
                             float.TryParse(line.Split(',')[3].Split(':')[1].Split('}')[0].Trim(), out w);
 
                             ((Slot)entities[otherid]).LocalRotation = new floatQ(x, y, z, w);
+
+
+
+                            
                         }
                         else if (line.StartsWith("  m_LocalPosition:"))
                         {
@@ -597,6 +753,12 @@ public class UnityPackageImporter : ResoniteMod
                             {
                                 orphanTransforms_Child_To_Parent.Remove(key);
                             }
+
+                            //finally fix our transforms
+                            //((Slot)entities[otherid])
+                                
+                            //    .ToEngine().Decompose(out var position, out var rotation, out var scale);
+
 
                         }
                         break;
@@ -688,6 +850,8 @@ public class UnityPackageImporter : ResoniteMod
                             }
                         }
 
+                        
+
                         if (line.StartsWith("  m_Mesh: "))
                         {
                             /*DebugMSG*/
@@ -709,19 +873,18 @@ public class UnityPackageImporter : ResoniteMod
                                     try//if this try fails, then a not found exception should have been thrown, allowing us to continue
                                     {
                                         importingExists = allTasks.First(i => i.fileImportTask.assetID.Equals(modelFileGUID));
-                                        currentEntityImportTaskHolder = new ImportTaskClass(importingExists.fileImportTask,
+                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]), 
+                                            importingExists.fileImportTask,
                                             meshFileID,
                                             new PrefabData());
-                                        allTasks.Clear();
                                     }
-                                    catch(InvalidOperationException)
+                                    catch (InvalidOperationException)
                                     {//if not found, make a new one.
                                         
-                                        currentEntityImportTaskHolder = new ImportTaskClass(
+                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]),
                                         new FileImportHelperTask(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
                                             meshFileID,
                                             new PrefabData());
-                                        allTasks.Clear();
                                     }
 
                                 }
@@ -760,9 +923,13 @@ public class UnityPackageImporter : ResoniteMod
 
                             }
                             else
-                            {
-                                currentEntityImportTaskHolder.BoneArrayIDs = tempBoneArrayIDs;
+                            {                                
+                                currentEntityImportTaskHolder.BoneArrayIDs = tempBoneArrayIDs.ToArray().ToList();
                                 tasksTemp.Add(currentEntityImportTaskHolder);
+                                inBoneSection = false;
+                                tempBoneArrayIDs.Clear(); //clear our bones for the next skinned mesh renderer parse
+                                Msg("Scanned bone list");
+                                Msg("found \""+currentEntityImportTaskHolder.BoneArrayIDs.Count().ToString()+"\" bones in mesh "+ entities[otherid].Name);
                             }
                         }
 
@@ -810,19 +977,18 @@ public class UnityPackageImporter : ResoniteMod
                                     try//if this try fails, then a not found exception should have been thrown, allowing us to continue
                                     {
                                         importingExists = allTasks.First(i => i.fileImportTask.assetID.Equals(modelFileGUID));
-                                        currentEntityImportTaskHolder = new ImportTaskClass(importingExists.fileImportTask,
+                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]), importingExists.fileImportTask,
                                             meshFileID,
                                             new PrefabData());
-                                        allTasks.Clear();
                                     }
                                     catch (InvalidOperationException)
                                     {//if not found, make a new one.
 
                                         currentEntityImportTaskHolder = new ImportTaskClass(
-                                        new FileImportHelperTask(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
+                                            ((Slot)entities[otherid]), 
+                                            new FileImportHelperTask(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
                                             meshFileID,
                                             new PrefabData());
-                                        allTasks.Clear();
                                     }
 
                                 }
@@ -854,28 +1020,35 @@ public class UnityPackageImporter : ResoniteMod
                 newtask.Prefabdata = prefabdata;
                 Tasks.Add(newtask);
             }
+            tasksTemp.Clear();
 
             return prefabdata;
         }
 
-        private static Task ImportModelUnity(Slot slot, string v)
+        // private static Task ImportModelUnity(Slot slot, string v)
+        // {
+        //     ModelImportSettings result = ModelImportSettings.PBS(
+        //         generateColliders: true,
+        //         importBones: true,
+        //         importAnimations: true,
+        //         pbsUnlit: false,
+        //         mapExternalTextures: true,
+        //         preferSpecular: false);
+        //     result.SetupIK = true;
+        //     result.ImportBones = true;
+
+        //     Task importThread = ModelImporter.ImportModelAsync(v, slot, result);
+        //     return importThread;
+        // }
+
+        private static IEnumerable<string> ImportPrefabStructures(Slot root, IEnumerable<string> files, bool shouldBeRaw, SharedData __state)
         {
-            ModelImportSettings result = ModelImportSettings.PBS(true,true,true,false,true,false);
-
-            result.SetupIK = true;
-            result.ImportBones = true;
-
-            Task importthread = ModelImporter.ImportModelAsync(v, slot, result, null, null);
-
-            return importthread;
-        }
-
-        private static IEnumerable<string> EndMethod(Slot root, IEnumerable<string> files, bool shouldBeRaw, SharedData __state)
-        {
-            Msg("Start post import patch unitypackage");
+            Msg("Start Prefab Importing unitypackage");
             //skip if raw files since we didn't do our setup and the user wants raw files.
             if (shouldBeRaw) return files;
-            files = files.Union(__state.ListOfPrefabs).Union(__state.ListOfMetas);
+            List<string> noprefabs = files.ToList();
+            noprefabs.RemoveAll(i => files.Union(__state.ListOfPrefabs).Union(__state.ListOfMetas).Contains(i));
+            IEnumerable<string> returnedfiles = noprefabs;
 
             //now we have a full list of meta files and prefabs regarding this import file list from our prefix (where ever this is even if not a unity package folder) we now begin the hard part
             // *drums* making the files go onto the model! 
@@ -888,8 +1061,8 @@ public class UnityPackageImporter : ResoniteMod
                 Msg("End prefab import");
             }
 
-            Msg("end post import patch unitypackage");
-            return files;
+            Msg("end Prefab Importing patch unitypackage");
+            return returnedfiles;
         }
     }
 

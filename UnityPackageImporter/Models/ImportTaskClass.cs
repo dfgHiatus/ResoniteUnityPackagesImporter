@@ -18,8 +18,9 @@ public class ImportTaskClass
         BoneArrayIDs = new List<string>();
     }
 
-    public ImportTaskClass(FileImportHelperTask fileImportTask, string thisSlotsMeshID, PrefabData pd)
+    public ImportTaskClass(Slot ImportRoot, FileImportHelperTask fileImportTask, string thisSlotsMeshID, PrefabData pd)
     {
+        this.ImportRoot = ImportRoot;
         this.fileImportTask = fileImportTask;
         Prefabdata = pd;
         BoneArrayIDs = new List<string>();

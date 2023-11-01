@@ -9,6 +9,7 @@ namespace UnityPackageImporter
     internal class MetaDataFile
     {
         public BipedRig modelBoneHumanoidAssignments;
+        public float GlobalScale = -1;
         public MetaDataFile() { }
 
         public static MetaDataFile ScanFile(string path, Slot ModelRootSlot)
@@ -33,6 +34,12 @@ namespace UnityPackageImporter
                     continue;
 
                 }
+                if (line.StartsWith("    previousCalculatedGlobalScale:"))
+                {
+                    string numberStr = line.Split(':')[1].Trim();
+                    UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing");
+                    metaDataFile.GlobalScale = float.Parse(numberStr);
+                }
 
 
 
@@ -54,7 +61,15 @@ namespace UnityPackageImporter
                         {
                             Rig.BoneNode bone = new Rig.BoneNode(ModelRootSlot.FindChild(boneName,false,false,-1), HumanoidNameToEnum(boneNameHuman));
 
-                            metaDataFile.modelBoneHumanoidAssignments.AssignBones(bone, true);
+                            //so that we add the bone without parsing it's children
+                            //if we use """AssignBones(Rig.BoneNode root, bool ignoreDuplicates)""" that will cause errors.
+                            if (!metaDataFile.modelBoneHumanoidAssignments.Bones.ContainsKey(bone.boneType))
+                            {
+                                metaDataFile.modelBoneHumanoidAssignments.Bones.Add(bone.boneType, bone.bone);
+                            }
+
+
+                            
 
 
 
@@ -69,24 +84,9 @@ namespace UnityPackageImporter
                     
 
                 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-                
             }
-
+            //to initialize our Rig's biped forward at the end for VRIK.
+            metaDataFile.modelBoneHumanoidAssignments.GuessForwardFlipped();
             return metaDataFile;
         }
 
