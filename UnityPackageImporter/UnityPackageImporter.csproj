@@ -69,6 +69,7 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Models\FileImportHelperTaskMaterial.cs" />
     <Compile Include="Models\MetaDataFile.cs" />
     <Compile Include="Models\ImportTaskClass.cs" />
     <Compile Include="Models\PrefabData.cs" />

@@ -119,7 +119,7 @@ public class UnityPackageImporter : ResoniteMod
     {
 
         private static List<ImportTaskClass> Tasks = new List<ImportTaskClass>();
-
+        private static List<FileImportHelperTaskMaterial> TasksMaterials = new List<FileImportHelperTaskMaterial>();
 
         public static bool Prefix(ref IEnumerable<string> files)
         {
@@ -212,20 +212,13 @@ public class UnityPackageImporter : ResoniteMod
             List<Task> waiters = new List<Task>();
             foreach (var t in Tasks)
             {
-                if (t != null)
-                {
-                    Msg("Has file import task" + (t.fileImportTask != null).ToString());
-                    if (t.fileImportTask != null) {
-                        Msg("Has file import task's task" + (t.fileImportTask.task != null).ToString());
-                    }
-                    if (!waiters.Contains(t.fileImportTask.task))
-                    {
-                        waiters.Add(t.fileImportTask.task);
-                    }
-                    
-                }
+                waiters.Add(t.fileImportTask.task);
             }
-            Msg("Waiting on asset import tasks now");
+            foreach(var mat in TasksMaterials)
+            {
+                waiters.Add(mat.task);
+            }
+            Msg("Waiting on asset import tasks now...");
             Task.WaitAll(waiters.ToArray());
 
             //Now time to merge.
@@ -242,35 +235,19 @@ public class UnityPackageImporter : ResoniteMod
                 Msg("Grabbing Task Slot for task " + task.meshFileID);
                 Slot taskSlot = task.ImportRoot;
                 Msg("is task slot valid? " + (null != taskSlot).ToString());
+                Msg("is task prefab root slot valid? " + (null != task.Prefabdata.RootSlot).ToString());
 
                 //EXPLAINATION OF THIS CODE:
                 //we are using the froox engine data made from assimp to force our model onto what we generated instead of
                 //what froox engine made. This is better than asking froox engine to fully import the model for us
                 //we get more control this way.
 
-                Msg("Finding our mesh for this task");
-                SkinnedMeshRenderer ournewmesh;
 
-                try
-                {
-                    //this allows us to pull the skinned mesh renderers we imported and then delete their slots later.
-                    SkinnedMeshRenderer originalSkinnedRenderer = task.fileImportTask.data.skinnedRenderers.First(i => i.Slot.Name == taskSlot.Name);
-                    Slot oldSlot = originalSkinnedRenderer.Slot;
-                    ournewmesh = taskSlot.CopyComponent(originalSkinnedRenderer);
-                    if (!oldSlots.Contains(oldSlot))
-                    {
-                        oldSlots.Add(oldSlot);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Msg("Imported mesh failed to find it's prefab counterpart!");
-                    Msg("Import task for file \"" + task.fileImportTask.file + "\" tried to put its skinnedMeshRenderer Component called \"" + taskSlot.Name + "\" under a slot imported by the prefab importer, but it errored! Here's the stacktrace:");
-                    Msg(e.StackTrace);
-                }
 
                 Rig rig = task.Prefabdata.RootSlot.GetComponent<Rig>();
                 if(rig == null) {
+                    Msg("rig missing, attaching.");
+                    Msg("slot to string is: " + task.Prefabdata.RootSlot.ToString());
                     rig = task.Prefabdata.RootSlot.AttachComponent<Rig>();
                 }
 
@@ -291,14 +268,45 @@ public class UnityPackageImporter : ResoniteMod
                             skinnedMeshrender.Bones.Add().Target = otherBone;
                             
                         }
+                        Msg("Waiting for mesh assets for: \"" + skinnedMeshrender.Slot.Name + "\"");
                         while (!skinnedMeshrender.Mesh.IsAssetAvailable)
                         {
                             await Task.Delay(1000);
                         }
+                        skinnedMeshrender.Materials.Clear();
+                        Msg("getting material objects for: \"" + skinnedMeshrender.Slot.Name + "\"");
+                        for (int index = 0; index < task.materialArrayIDs.Count(); index++)
+                        {
+                            skinnedMeshrender.Materials.Add().Target = TasksMaterials.First(i => i.myID == task.materialArrayIDs[index]).finalMaterial;
+                        }
+                        
 
                         skinnedMeshrender.SetupBlendShapes();
+
+
                     }
 
+                }
+
+                Msg("Finding our mesh for this task");
+                SkinnedMeshRenderer ournewmesh;
+
+                try
+                {
+                    //this allows us to pull the skinned mesh renderers we imported and then delete their slots later.
+                    SkinnedMeshRenderer originalSkinnedRenderer = task.fileImportTask.data.skinnedRenderers.First(i => i.Slot.Name == taskSlot.Name);
+                    Slot oldSlot = originalSkinnedRenderer.Slot;
+                    ournewmesh = taskSlot.CopyComponent(originalSkinnedRenderer);
+                    if (!oldSlots.Contains(oldSlot))
+                    {
+                        oldSlots.Add(oldSlot);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Msg("Imported mesh failed to find it's prefab counterpart!");
+                    Msg("Import task for file \"" + task.fileImportTask.file + "\" tried to put its skinnedMeshRenderer Component called \"" + taskSlot.Name + "\" under a slot imported by the prefab importer, but it errored! Here's the stacktrace:");
+                    Msg(e.StackTrace);
                 }
 
                 //var meshname = taskSlot.Name;
@@ -404,7 +412,7 @@ public class UnityPackageImporter : ResoniteMod
             }
             foreach (Slot oldSlot in oldSlots.ToArray())
             {
-                oldSlot.PrepareDestruction(); //so that we don't destroy now and cause a removed item during iteration exception.
+                oldSlot.Destroy();
             }
 
 
@@ -480,7 +488,7 @@ public class UnityPackageImporter : ResoniteMod
         private static PrefabData LoadPrefabUnity(IEnumerable<string> files, SharedData __state, Slot parentUnder, string PrefabID)
         {
             string prefab = __state.AssetIDDict.GetValueSafe(PrefabID);
-            var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileNameWithoutExtension(prefab));
+            var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(prefab));
             prefabslot.SetParent(parentUnder,false);
 
             //begin the parsing of our prefabs.
@@ -512,12 +520,18 @@ public class UnityPackageImporter : ResoniteMod
 
             //skinned mesh renderer tags
             bool inBoneSection = false;
+            bool inMatSection = false;
 
-            //orphan transforms temp storage
+            
             List<string> tempBoneArrayIDs = new List<string>();
+            List<string> tempMaterialArrayIDs = new List<string>();
+            List<FileImportHelperTaskMaterial> tempTasksMaterials = new List<FileImportHelperTaskMaterial>();
+
+
             List<ImportTaskClass> tasksTemp = new();
             Dictionary<string, IWorldElement> entities = new();
             Dictionary<string, string> entityChildID_To_EntityParentID = new();
+            //orphan transforms temp storage
             Dictionary<string, string> orphanTransforms_Child_To_Parent = new ();
             ImportTaskClass currentEntityImportTaskHolder = new ImportTaskClass();
 
@@ -585,19 +599,21 @@ public class UnityPackageImporter : ResoniteMod
                         //if only starts with worked with a switch
                         if (line.StartsWith("  - component") && foundtransform == false)
                         {
-                            /*DebugMSG*/Msg("found transform component ref for game object, adding");
+                            /*DebugMSG*/
+                            Msg("found transform component ref for game object, adding");
                             otherid = line.Split(':')[2].Split('}')[0].Trim();
                             if (!entityChildID_To_EntityParentID.ContainsKey(otherid))
                             {
                                 entityChildID_To_EntityParentID.Add(otherid, entityID);
                             }
-                            
+
                             foundtransform = true;
                             break;
                         }
                         else if (line.StartsWith("  - component"))
                         {
-                            /*DebugMSG*/Msg("found non transform component ref for game object, adding parent child relationship");
+                            /*DebugMSG*/
+                            Msg("found non transform component ref for game object, adding parent child relationship");
                             otherid = line.Split(':')[2].Split('}')[0].Trim();
                             if (!entityChildID_To_EntityParentID.ContainsKey(otherid))
                             {
@@ -606,28 +622,32 @@ public class UnityPackageImporter : ResoniteMod
                         }
                         else if (line.StartsWith("  m_Name: "))
                         {
-                            /*DebugMSG*/Msg("found name for game object, setting");
+                            /*DebugMSG*/
+                            Msg("found name for game object, setting");
                             ((Slot)entities[entityID]).Name = line.Remove(0, "  m_Name: ".Length);
 
-                            if (((Slot)entities[entityID]).Name.Equals(Path.GetFileNameWithoutExtension(prefab))){
+                            if (((Slot)entities[entityID]).Name.Equals(Path.GetFileNameWithoutExtension(prefab))) {
                                 prefabslot = (Slot)entities[entityID];
                                 prefabslot.PositionInFrontOfUser(); //to put our import in front of us.
+                                prefabslot.Name += ".prefab";
                             }
-                                
+
                         }
                         else if (line.StartsWith("  m_TagString: "))
                         {
                             //idk if we need this, but it's cool.
-                            /*DebugMSG*/Msg("found tag for game object, setting");
+                            /*DebugMSG*/
+                            Msg("found tag for game object, setting");
                             string tag = line.Remove(0, "  m_TagString: ".Length);
                             if (!tag.Equals("Untagged"))
                             {
-                                ((Slot)entities[entityID]).Tag = tag; 
+                                ((Slot)entities[entityID]).Tag = tag;
                             }
                         }
                         else if (line.StartsWith("  m_IsActive: "))
                         {
-                            /*DebugMSG*/Msg("found active for game object, setting");
+                            /*DebugMSG*/
+                            Msg("found active for game object, setting");
                             ((Slot)entities[entityID]).ActiveSelf = line.Remove(0, "  m_IsActive: ".Length).Trim().Equals("1");
                         }
 
@@ -674,7 +694,7 @@ public class UnityPackageImporter : ResoniteMod
 
 
 
-                            
+
                         }
                         else if (line.StartsWith("  m_LocalPosition:"))
                         {
@@ -756,7 +776,7 @@ public class UnityPackageImporter : ResoniteMod
 
                             //finally fix our transforms
                             //((Slot)entities[otherid])
-                                
+
                             //    .ToEngine().Decompose(out var position, out var rotation, out var scale);
 
 
@@ -765,22 +785,28 @@ public class UnityPackageImporter : ResoniteMod
                     case "ParticleSystem":
                         if (line.StartsWith("  m_GameObject: "))
                         {
-                            /*DebugMSG*/Msg("found game object parent ref id, checking");
+                            /*DebugMSG*/
+                            Msg("found game object parent ref id, checking");
                             otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            /*DebugMSG*/Msg("id is \"" + otherid+"\"");
+                            /*DebugMSG*/
+                            Msg("id is \"" + otherid + "\"");
                             if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
                             {
                                 entityChildID_To_EntityParentID.Add(entityID, otherid);
-                            }
-                            if (!entities.ContainsKey(otherid))
+                                if (!entities.ContainsKey(otherid))
 
-                            {//now since we add the game object if it appears before this component, and add it prematurely before it appears, now we can assemble 1/2 of the game object in both places
-                             //eventually it will be 100% complete at the end.
-                             //it's not great coding, but it works.
-                             // if we find the component after the game object is created, the slot will be created here and added to when we find the game object so can just add our component right after this.
-                             /*DebugMSG*/Msg("id is not made, creating slot");
-                                entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
-                                break;
+                                {//now since we add the game object if it appears before this component, and add it prematurely before it appears, now we can assemble 1/2 of the game object in both places
+                                 //eventually it will be 100% complete at the end.
+                                 //it's not great coding, but it works.
+                                 // if we find the component after the game object is created, the slot will be created here and added to when we find the game object so can just add our component right after this.
+                                    /*DebugMSG*/Msg("id is not made, creating slot");
+                                    entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
+
+                                    break;
+                                }
+
+                                entities.Add(entityID, ((Slot)entities[otherid]).AttachComponent<ParticleSystem>());
+
                             }
                         }
 
@@ -796,27 +822,30 @@ public class UnityPackageImporter : ResoniteMod
                         */
 
 
-                        ParticleSystem thisComponent = (ParticleSystem)entities[entityID];
 
+                        if (entities.ContainsKey(entityID))
+                        {
+                            ParticleSystem thisComponent = (ParticleSystem)entities[entityID];
+                            //use this to know what data you're parsing, since it can repeat the same line in the same component. but they're split by lines that determine the sections like these.
+                            if (line.StartsWith("    startColor:"))
+                            {
+                                //particletag = 0;
 
-                        //use this to know what data you're parsing, since it can repeat the same line in the same component. but they're split by lines that determine the sections like these.
-                        if (line.StartsWith("    startColor:"))
-                        {
-                            //particletag = 0;
+                            }
+                            else if (line.StartsWith("    startSize:"))
+                            {
+                                //particletag = 1;
+                            }
+                            else if (line.StartsWith("    gravityModifier:"))
+                            {
+                                //particletag = 2;
+                            }
+                            else if (line.StartsWith("  EmissionModule:"))
+                            {
+                                //particletag = 3;
+                            }
+                        }
 
-                        }
-                        else if (line.StartsWith("    startSize:"))
-                        {
-                            //particletag = 1;
-                        }
-                        else if (line.StartsWith("    gravityModifier:"))
-                        {
-                            //particletag = 2;
-                        }
-                        else if (line.StartsWith("  EmissionModule:"))
-                        {
-                            //particletag = 3;
-                        }
 
 
 
@@ -829,30 +858,77 @@ public class UnityPackageImporter : ResoniteMod
                     case "MeshFilter":
 
 
-                        if (line.StartsWith("  m_GameObject: "))
+                        
+
+
+                        if (inMatSection)
                         {
-                            /*DebugMSG*/Msg("found game object parent ref id, checking");
+                            if (line.StartsWith("  - {fileID:"))
+                            {
+                                //this runs after the file is imported
+                                //though looking at sourcecode via DNSpy (which is okay according to TOS of Resonite), the importer runs on an async task, so this is annoying...
+
+
+
+                                //This code finds the bone list that this model has and adds it to a list of bone ID's
+                                //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
+                                //this way, we know which id's go to which bones. Then it's as easy as putting them together.
+
+
+                                string materialID = line.Split(':')[2].Split(',')[0].Trim();
+                                Msg("Material id is: \"" + materialID + "\"");
+                                if (!TasksMaterials.Exists(i => i.myID == materialID))
+                                {
+                                    Msg("Adding material to list since it's not in the list of all materials");
+                                    try
+                                    {
+                                        //TODO: UNCOMMENT =========================================================================
+                                        //tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), ((Slot)entities[otherid]).World.AssetsSlot, __state));
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        Msg("Couldn't find material with ID: \"" + materialID + "\"!! Stacktrace:");
+                                        Msg(e.StackTrace);
+                                    }
+                                }
+                                tempMaterialArrayIDs.Add(materialID);
+
+
+
+                            }
+                            else
+                            {
+
+                                currentEntityImportTaskHolder.materialArrayIDs = tempMaterialArrayIDs.ToArray().ToList();
+                                inMatSection = false;
+                                tempMaterialArrayIDs.Clear(); //clear our bones for the next skinned mesh renderer parse
+                                Msg("Scanned material list");
+                                Msg("found \"" + currentEntityImportTaskHolder.materialArrayIDs.Count().ToString() + "\" materials in mesh " + entities[otherid].Name);
+                            }
+                        }
+                        else if (line.StartsWith("  m_GameObject: "))
+                        {
+                            /*DebugMSG*/
+                            Msg("found game object parent ref id, checking");
                             otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            /*DebugMSG*/Msg("id is \"" + otherid+"\"");
+                            /*DebugMSG*/
+                            Msg("id is \"" + otherid + "\"");
                             if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
                             {
                                 entityChildID_To_EntityParentID.Add(entityID, otherid);
                             }
                             if (!entities.ContainsKey(otherid))
-
                             {//now since we add the game object if it appears before this component, and add it prematurely before it appears, now we can assemble 1/2 of the game object in both places
                              //eventually it will be 100% complete at the end.
                              //it's not great coding, but it works.
                              // if we find the component after the game object is created, the slot will be created here and added to when we find the game object so can just add our component right after this.
-                             /*DebugMSG*/Msg("id is not made, creating slot");
+                                /*DebugMSG*/
+                                Msg("id is not made, creating slot");
                                 entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
                                 break;
                             }
                         }
-
-                        
-
-                        if (line.StartsWith("  m_Mesh: "))
+                        else if (line.StartsWith("  m_Mesh: "))
                         {
                             /*DebugMSG*/
                             Msg("found mesh, parsing");
@@ -865,7 +941,7 @@ public class UnityPackageImporter : ResoniteMod
                             if (meshtype == 3)
                             {
                                 //this will load the mesh, which is actually a file, and load it into the slot this component should be on.
-                                try{
+                                try {
                                     var allTasks = new List<ImportTaskClass>();
                                     allTasks.AddRange(tasksTemp);
                                     allTasks.AddRange(Tasks);
@@ -873,28 +949,33 @@ public class UnityPackageImporter : ResoniteMod
                                     try//if this try fails, then a not found exception should have been thrown, allowing us to continue
                                     {
                                         importingExists = allTasks.First(i => i.fileImportTask.assetID.Equals(modelFileGUID));
-                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]), 
+                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]),
                                             importingExists.fileImportTask,
                                             meshFileID,
                                             new PrefabData());
                                     }
                                     catch (InvalidOperationException)
                                     {//if not found, make a new one.
-                                        
+
                                         currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]),
-                                        new FileImportHelperTask(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
+                                        new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
                                             meshFileID,
                                             new PrefabData());
                                     }
 
                                 }
-                                catch(Exception e)
+                                catch (Exception e)
                                 {
                                     Msg("could not find mesh reference!!! Did you forget to import the model along with the prefab at the same time?");
                                     Msg("ERROR BELOW:");
                                     Msg(e.StackTrace);
                                 }
 
+                            }
+                            else if (line.StartsWith("  m_Materials:"))
+                            {
+                                inMatSection = true;
+                                break;
                             }
 
                         }
@@ -915,21 +996,66 @@ public class UnityPackageImporter : ResoniteMod
                                 //this way, we know which id's go to which bones. Then it's as easy as putting them together.
 
 
-                                
-                                
+
+
                                 tempBoneArrayIDs.Add(line.Split(':')[1].Split('}')[0].Trim());
 
 
 
                             }
                             else
-                            {                                
+                            {
                                 currentEntityImportTaskHolder.BoneArrayIDs = tempBoneArrayIDs.ToArray().ToList();
                                 tasksTemp.Add(currentEntityImportTaskHolder);
                                 inBoneSection = false;
                                 tempBoneArrayIDs.Clear(); //clear our bones for the next skinned mesh renderer parse
                                 Msg("Scanned bone list");
-                                Msg("found \""+currentEntityImportTaskHolder.BoneArrayIDs.Count().ToString()+"\" bones in mesh "+ entities[otherid].Name);
+                                Msg("found \"" + currentEntityImportTaskHolder.BoneArrayIDs.Count().ToString() + "\" bones in mesh " + entities[otherid].Name);
+                            }
+                        }
+                        else if (inMatSection)
+                        {
+                            if (line.StartsWith("  - {fileID:"))
+                            {
+                                //this runs after the file is imported
+                                //though looking at sourcecode via DNSpy (which is okay according to TOS of Resonite), the importer runs on an async task, so this is annoying...
+
+
+
+                                //This code finds the bone list that this model has and adds it to a list of bone ID's
+                                //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
+                                //this way, we know which id's go to which bones. Then it's as easy as putting them together.
+
+
+                                string materialID = line.Split(':')[2].Split(',')[0].Trim();
+                                Msg("Material id is: \""+ materialID + "\"");
+                                if (!TasksMaterials.Exists(i => i.myID == materialID))
+                                {
+                                    Msg("Adding material to list since it's not in the list of all materials");
+                                    try
+                                    {
+
+                                        //tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), ((Slot)entities[otherid]).World.AssetsSlot, __state));
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        Msg("Couldn't find material with ID: \"" + materialID + "\"!! Stacktrace:");
+                                        Msg(e.StackTrace);
+                                    }
+                                }
+                                tempMaterialArrayIDs.Add(materialID);
+
+
+
+                            }
+                            else
+                            {
+                                
+                                currentEntityImportTaskHolder.materialArrayIDs = tempMaterialArrayIDs.ToArray().ToList();
+                                inMatSection = false;
+                                tempMaterialArrayIDs.Clear(); //clear our bones for the next skinned mesh renderer parse
+                                Msg("Scanned material list");
+                                Msg("found \"" + currentEntityImportTaskHolder.materialArrayIDs.Count().ToString() + "\" materials in mesh " + entities[otherid].Name);
                             }
                         }
 
@@ -986,7 +1112,7 @@ public class UnityPackageImporter : ResoniteMod
 
                                         currentEntityImportTaskHolder = new ImportTaskClass(
                                             ((Slot)entities[otherid]), 
-                                            new FileImportHelperTask(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
+                                            new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
                                             meshFileID,
                                             new PrefabData());
                                     }
@@ -1008,6 +1134,10 @@ public class UnityPackageImporter : ResoniteMod
 
                             break;
                         }
+                        else if(line.StartsWith("  m_Materials:")){
+                            inMatSection = true;
+                            break;
+                        }
                         break;
                 }
             }
@@ -1021,6 +1151,10 @@ public class UnityPackageImporter : ResoniteMod
                 Tasks.Add(newtask);
             }
             tasksTemp.Clear();
+            foreach (var task in tempTasksMaterials) {
+                var newtask = task;
+                TasksMaterials.Add(newtask);
+            }
 
             return prefabdata;
         }

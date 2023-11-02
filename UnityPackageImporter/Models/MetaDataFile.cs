@@ -1,5 +1,6 @@
 ﻿using Elements.Core;
 using FrooxEngine;
+using Microsoft.Cci;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -22,7 +23,7 @@ namespace UnityPackageImporter
             string boneNameHuman = string.Empty;
 
 
-
+            bool inScaleBlock = false;
             MetaDataFile metaDataFile = new MetaDataFile();
             metaDataFile.modelBoneHumanoidAssignments = ModelRootSlot.AttachComponent<BipedRig>();
             foreach (string line in File.ReadLines(path))
@@ -34,11 +35,20 @@ namespace UnityPackageImporter
                     continue;
 
                 }
-                if (line.StartsWith("    previousCalculatedGlobalScale:"))
+                else if (line.StartsWith("    - name: Armature"))
                 {
-                    string numberStr = line.Split(':')[1].Trim();
-                    UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing");
-                    metaDataFile.GlobalScale = float.Parse(numberStr);
+                    inScaleBlock = true;
+
+                }
+                if (inScaleBlock)
+                {
+                    if (line.StartsWith("      scale: "))
+                    {
+                        string numberStr = line.Split(':')[2].Split(',')[0].Trim();
+                        UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing and diving 1 by it to get our scale");
+                        metaDataFile.GlobalScale = 1/float.Parse(numberStr);
+                        inScaleBlock = false;
+                    }
                 }
 
 
@@ -87,15 +97,26 @@ namespace UnityPackageImporter
             }
             //to initialize our Rig's biped forward at the end for VRIK.
             metaDataFile.modelBoneHumanoidAssignments.GuessForwardFlipped();
+            metaDataFile.modelBoneHumanoidAssignments.DetectHandRigs();
             return metaDataFile;
         }
 
         //Since Unity names and Froox Engine names are the same, just parse them as enums and return.
         public static BodyNode HumanoidNameToEnum(string boneNameHuman)
         {
+            //edge cases
+            boneNameHuman = boneNameHuman.Replace(" Metacarpal", "_Metacarpal");
+            boneNameHuman = boneNameHuman.Replace(" Proximal", "_Proximal");
+            boneNameHuman = boneNameHuman.Replace(" Distal", "_Distal");
+            
+
+            boneNameHuman = boneNameHuman.Replace(" Little Metacarpal", "Pinky_Metacarpal");
+            boneNameHuman = boneNameHuman.Replace(" Little Proximal", "Pinky_Proximal");
+            boneNameHuman = boneNameHuman.Replace(" Little Distal", "Pinky_Distal");
             boneNameHuman = boneNameHuman.Replace(" ", "");
 
-            if(Enum.TryParse(boneNameHuman, out BodyNode bodyNode))
+            //now parse
+            if (Enum.TryParse(boneNameHuman, out BodyNode bodyNode))
             {
                 return bodyNode;
             }
