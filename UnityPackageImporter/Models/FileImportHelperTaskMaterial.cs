@@ -6,7 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Threading.Tasks;
+using static FrooxEngine.ModelImporter;
 
 namespace UnityPackageImporter.Models
 {
@@ -18,15 +20,18 @@ namespace UnityPackageImporter.Models
         public FrooxEngine.PBS_Metallic finalMaterial;
         public Slot assetsRoot;
         public Task task;
+        public Slot matslot;
         public SharedData state;
 
-        public FileImportHelperTaskMaterial(string file, string myID, Slot myMeshRendererSlot, Slot assetsRoot, SharedData __state )
+        public FileImportHelperTaskMaterial(string file, string myID, Slot myMeshRendererSlot, SharedData __state )
         {
             this.file = file;
             this.myID = myID;
             this.myMeshRendererSlot = myMeshRendererSlot;
+            this.assetsRoot = __state.importTaskAssetRoot;
             Slot matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(file) + " - Material");
             finalMaterial = matslot.AttachComponent<FrooxEngine.PBS_Metallic>();
+            this.matslot = matslot;
             this.state = __state;
             this.task = myMeshRendererSlot.StartGlobalTask(async () => await runImportFileMaterialsAsync());
             
@@ -48,32 +53,46 @@ namespace UnityPackageImporter.Models
 
             for (int i=0; i < lines.Length;i++ )
             {
-                if (lines[i].StartsWith("    m_TexEnvs:"))
+                if (lines[i].Trim().StartsWith("m_TexEnvs:"))
                 {
                     inTextureBlock = true;
                     continue;
                 }
+                else if (lines[i].Trim().StartsWith("m_Floats:"))
+                {
+                    inTextureBlock = false;
+                    continue;
+                }
 
-                
+
 
 
                 if (inTextureBlock)
                 {
-                    if (!lines[i].Contains("}")){
-                        texturename = lines[i].Split('_')[1].Split(':')[0].Trim();
-                        switch (texturename)
+                    if (!lines[i].Contains('}')){
+                        StaticTexture2D importedTexture;
+                        try
                         {
+                            texturename = lines[i].Split('_')[1].Split(':')[0].Trim();
+                            string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
+                            UnityPackageImporter.Msg("Assigning texture for material, Material id is:\"" + this.myID + "\" ID of texture is: \"" + textureid + "\"");
+                            await default(ToWorld);
+                            importedTexture = await ImportTexture(textureid);
+                            await default(ToBackground);
+                            UnityPackageImporter.Msg("Finished importing texture\"" + textureid + "\" Material id is:\"" + this.myID + "\"");
+                        }
+                        catch(Exception)
+                        {
+                            continue;
+                        }
+                        switch (texturename) {
                             case "BumpMap":
                                 try
                                 {
-                                    string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
+                                    await default(ToWorld);
 
-                                    Task<StaticTexture2D> waitFor = ImportTexture(textureid);
-                                    Task.WaitAll(waitFor);
-                                    UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
-                                    StaticTexture2D albedo = waitFor.Result;
-
-                                    finalMaterial.NormalMap.Target = albedo;
+                                    finalMaterial.NormalMap.Target = importedTexture;
+                                    await default(ToBackground);
                                 }
                                 catch(Exception e){
                                     UnityPackageImporter.Msg("Failed to find " + "BumpMap" + " texture! Stacktrace: ");
@@ -85,31 +104,40 @@ namespace UnityPackageImporter.Models
                             case "DetailAlbedoMap":
                                 try
                                 {
-                                    string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
+                                    await default(ToWorld);
+                                    finalMaterial.DetailAlbedoTexture.Target = importedTexture;
+                                    await default(ToBackground);
 
-                                    Task<StaticTexture2D> waitFor = ImportTexture(textureid);
-                                    Task.WaitAll(waitFor);
-                                    UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
-                                    StaticTexture2D albedo = waitFor.Result;
-
-                                    finalMaterial.DetailAlbedoTexture.Target = albedo;
                                 }
                                 catch (Exception e)
                                 {
                                     UnityPackageImporter.Msg("Failed to find " + "DetailAlbedoMap" + " texture! Stacktrace: ");
                                     UnityPackageImporter.Msg(e.StackTrace);
                                 }
+                                await default(ToWorld);
+                                float.TryParse(lines[i + 2].Split(':')[2].Split(',')[0].Trim(), out float x);
+                                float.TryParse(lines[i + 2].Split(':')[3].Split('}')[0].Trim(), out float y);
+
+                                finalMaterial.DetailTextureScale.Value = new float2(x, y);
+
+                                float.TryParse(lines[i + 3].Split(':')[2].Split(',')[0].Trim(), out float x2);
+                                float.TryParse(lines[i + 3].Split(':')[3].Split('}')[0].Trim(), out float y2);
+
+                                finalMaterial.DetailTextureOffset.Value = new float2(x2, y2);
+                                await default(ToBackground);
                                 break;
-                            case "DetailMask":
+                            /*case "DetailMask":
                                 try
                                 {
                                     //unimplemented by frooxengine.
-                                    string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
 
-                                    Task<StaticTexture2D> waitFor = ImportTexture(textureid);
-                                    Task.WaitAll(waitFor);
-                                    UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
-                                    StaticTexture2D albedo = waitFor.Result;
+
+                                    //UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
+                                    //StaticTexture2D albedo = await ImportTexture(textureid);
+                                    //await default(ToWorld);
+                                    //finalMaterial.DetailMask.Target = albedo;
+                                    //await default(ToBackground);
+                                    //UnityPackageImporter.Msg("Finished importing " + textureid);
 
                                 }
                                 catch (Exception e)
@@ -117,18 +145,13 @@ namespace UnityPackageImporter.Models
                                     UnityPackageImporter.Msg("Failed to find " + "DetailMask" + " texture! Stacktrace: ");
                                     UnityPackageImporter.Msg(e.StackTrace);
                                 }
-                                break;
+                                break;*/
                             case "DetailNormalMap":
                                 try
                                 {
-                                    string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
-
-                                    Task<StaticTexture2D> waitFor = ImportTexture(textureid);
-                                    Task.WaitAll(waitFor);
-                                    UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
-                                    StaticTexture2D albedo = waitFor.Result;
-
-                                    finalMaterial.DetailNormalMap.Target = albedo;
+                                    await default(ToWorld);
+                                    finalMaterial.DetailNormalMap.Target = importedTexture;
+                                    await default(ToBackground);
                                 }
                                 catch (Exception e)
                                 {
@@ -139,13 +162,9 @@ namespace UnityPackageImporter.Models
                             case "EmissionMap":
                                 try
                                 {
-                                    string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
-                                    Task<StaticTexture2D> waitFor = ImportTexture(textureid);
-                                    Task.WaitAll(waitFor);
-                                    UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
-                                    StaticTexture2D albedo = waitFor.Result;
-
-                                    finalMaterial.EmissiveMap.Target = albedo;
+                                    await default(ToWorld);
+                                    finalMaterial.EmissiveMap.Target = importedTexture;
+                                    await default(ToBackground);
                                 }
                                 catch (Exception e)
                                 {
@@ -156,42 +175,33 @@ namespace UnityPackageImporter.Models
                             case "MainTex":
                                 try
                                 {
-                                    string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
-
-                                    Task<StaticTexture2D> waitFor = ImportTexture(textureid);
-                                    Task.WaitAll(waitFor);
-                                    UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
-                                    StaticTexture2D albedo = waitFor.Result;
-
-                                    finalMaterial.AlbedoTexture.Target = albedo;
+                                    await default(ToWorld);
+                                    finalMaterial.AlbedoTexture.Target = importedTexture;
+                                    await default(ToBackground);
                                 }
                                 catch (Exception e)
                                 {
                                     UnityPackageImporter.Msg("Failed to find " + "MainTex" + " texture! Stacktrace: ");
                                     UnityPackageImporter.Msg(e.StackTrace);
                                 }
+                                await default(ToWorld);
+                                float.TryParse(lines[i + 2].Split(':')[2].Split(',')[0].Trim(), out float x1);
+                                float.TryParse(lines[i + 2].Split(':')[3].Split('}')[0].Trim(), out float y1);
 
-                                float.TryParse(lines[i + 2].Split(':')[2].Split(',')[0].Trim(), out float x);
-                                float.TryParse(lines[i + 2].Split(':')[3].Split(',')[0].Trim(), out float y);
+                                finalMaterial.TextureScale.Value = new float2(x1, y1);
 
-                                finalMaterial.TextureScale.Value = new float2(x, y);
+                                float.TryParse(lines[i + 3].Split(':')[2].Split(',')[0].Trim(), out float x1_2);
+                                float.TryParse(lines[i + 3].Split(':')[3].Split('}')[0].Trim(), out float y1_2);
 
-                                float.TryParse(lines[i + 3].Split(':')[2].Split(',')[0].Trim(), out float x2);
-                                float.TryParse(lines[i + 3].Split(':')[3].Split(',')[0].Trim(), out float y2);
-
-                                finalMaterial.TextureOffset.Value = new float2(x2, y2);
+                                finalMaterial.TextureOffset.Value = new float2(x1_2, y1_2);
+                                await default(ToBackground);
                                 break;
                             case "OcclusionMap":
                                 try
                                 {
-                                    string textureid = lines[i + 1].Split(':')[3].Split(',')[0].Trim();
-
-                                    Task<StaticTexture2D> waitFor = ImportTexture(textureid);
-                                    Task.WaitAll(waitFor);
-                                    UnityPackageImporter.Msg("Assigning texture for material. ID of texture is: " + textureid);
-                                    StaticTexture2D albedo = waitFor.Result;
-
-                                    finalMaterial.OcclusionMap.Target = albedo;
+                                    await default(ToWorld);
+                                    finalMaterial.OcclusionMap.Target = importedTexture;
+                                    await default(ToBackground);
                                 }
                                 catch (Exception e)
                                 {
@@ -226,33 +236,38 @@ namespace UnityPackageImporter.Models
 
         public async Task<StaticTexture2D> ImportTexture(string idtarget)
         {
-            await default(ToWorld);
+            await default(ToBackground);
+            StaticTexture2D staticTexture2D = null;
             try
             {
-                string metaFilePath = this.state.AssetIDDict.First(i => i.key.Equals(idtarget)).value;
-                string f = metaFilePath.Remove(0, metaFilePath.Length - Path.GetExtension(metaFilePath).Length);
-                StaticTexture2D staticTexture2D = assetsRoot.AddSlot(Path.GetFileName(f)).AttachComponent<StaticTexture2D>();
-                Uri url;
-                string tempFilePath = this.assetsRoot.World.Engine.LocalDB.GetTempFilePath("png");
-                TextureEncoder.ConvertToPNG(f, tempFilePath, 4096 * 2);
+                UnityPackageImporter.Msg("Path is being found for texture " + idtarget);
+                string f = this.state.AssetIDDict[idtarget];
+                UnityPackageImporter.Msg("Path is found for texture " + idtarget + " path is: \"" + f + "\"");
+                await default(ToWorld);
+                UnityPackageImporter.Msg("adding tex slot for texture " + idtarget + " path is: \"" + f + "\"");
+                //so that we don't try importing the same texture twice.
+                if (assetsRoot.GetAllChildren().Exists(i => i.Name.Equals(Path.GetFileName(f) + " - Texture")))
+                {
+                    return assetsRoot.GetAllChildren().First(i => i.Name.Equals(Path.GetFileName(f) + " - Texture")).GetComponent<StaticTexture2D>();
+                }
+                Slot slot = matslot.AddSlot(Path.GetFileName(f) + " - Texture");
+                UnityPackageImporter.Msg("adding tex onto slot for texture " + idtarget + " path is: \"" + f + "\"");
+                staticTexture2D = slot.AttachComponent<StaticTexture2D>();
                 UnityPackageImporter.Msg("Importing URI for texture " + idtarget);
-                Task<Uri> waitfor = this.assetsRoot.World.Engine.LocalDB.ImportLocalAssetAsync(tempFilePath, LocalDB.ImportLocation.Move);
-                Task.WaitAll(waitfor);
-                url = waitfor.Result;
+                Uri url = await this.assetsRoot.World.Engine.LocalDB.ImportLocalAssetAsync(f, LocalDB.ImportLocation.Copy);
                 UnityPackageImporter.Msg("Imported URI for texture " + idtarget + " URI is: " + url.ToString());
-                
                 staticTexture2D.URL.Value = url;
-                
+                UnityPackageImporter.Msg("URI is assigned for texture " + idtarget + " URI is: " + url.ToString());
+                await default(ToBackground);
+
             }
             catch (Exception e)
             {
                 UnityPackageImporter.Msg("Texture import for ID: \"" + idtarget + "\" failed! Assigning missing texure. Stacktrace:");
                 UnityPackageImporter.Msg(e.StackTrace);
             }
-            
-            StaticTexture2D returnThis = assetsRoot.AddSlot(idtarget).AttachComponent<StaticTexture2D>();
             await default(ToBackground);
-            return returnThis;
+            return staticTexture2D;
 
         }
     }

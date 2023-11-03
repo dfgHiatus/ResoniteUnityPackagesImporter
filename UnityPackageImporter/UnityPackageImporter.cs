@@ -21,6 +21,7 @@ using FrooxEngine.Undo;
 using static FrooxEngine.Rig;
 using Mono.Cecil;
 using static FrooxEngine.MeshUploadHint;
+using Microsoft.Cci.Pdb;
 
 namespace UnityPackageImporter;
 
@@ -162,7 +163,7 @@ public class UnityPackageImporter : ResoniteMod
 
 
 
-
+            
 
             List<string> yeetfiles = ImportPrefabStructures(slot, scanthesefiles, Config.GetValue(importAsRawFiles), __state).ToList();
 
@@ -216,17 +217,18 @@ public class UnityPackageImporter : ResoniteMod
             }
             foreach(var mat in TasksMaterials)
             {
-                waiters.Add(mat.task);
+               waiters.Add(mat.task);
             }
             Msg("Waiting on asset import tasks now...");
+            await default(ToBackground);
             Task.WaitAll(waiters.ToArray());
+            await default(ToBackground);
 
             //Now time to merge.
             Msg("Merging bones");
 
-            List<Slot> oldSlots = new List<Slot>();
-
             await default(ToWorld);
+            List<Slot> oldSlots = new List<Slot>();
             foreach (ImportTaskClass task in Tasks)
             {
                 Msg("Start task finalization");
@@ -273,11 +275,30 @@ public class UnityPackageImporter : ResoniteMod
                         {
                             await Task.Delay(1000);
                         }
-                        skinnedMeshrender.Materials.Clear();
+                        
                         Msg("getting material objects for: \"" + skinnedMeshrender.Slot.Name + "\"");
+                        skinnedMeshrender.Materials.Clear();
                         for (int index = 0; index < task.materialArrayIDs.Count(); index++)
                         {
-                            skinnedMeshrender.Materials.Add().Target = TasksMaterials.First(i => i.myID == task.materialArrayIDs[index]).finalMaterial;
+                            try
+                            {
+                                skinnedMeshrender.Materials[index] = TasksMaterials.First(i => i.myID == task.materialArrayIDs[index]).finalMaterial;
+                            }
+                            catch
+                            {
+                                
+                                try
+                                {
+                                    skinnedMeshrender.Materials.Add().Target = TasksMaterials.First(i => i.myID == task.materialArrayIDs[index]).finalMaterial;
+                                }
+                                catch(Exception e)
+                                {
+                                    Msg("Could not attach material \""+ task.materialArrayIDs[index] + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
+                                    Msg("stacktrace for material \"" + task.materialArrayIDs[index] + "\"");
+                                    Msg(e.StackTrace);
+                                }
+                            }
+                            
                         }
                         
 
@@ -320,18 +341,18 @@ public class UnityPackageImporter : ResoniteMod
                     //it scans the file's metadata to make it work.
                     //this MetaDataFile object class gives us access to the biped rig component directly if desired
                     //but we're using it to also get our global scale.
-                    metadata = MetaDataFile.ScanFile(task.fileImportTask.file + ".meta", task.Prefabdata.RootSlot);
+                    metadata = MetaDataFile.ScanFile(task.fileImportTask.file + UNITY_META_EXTENSION, task.Prefabdata.RootSlot);
                     task.fileImportTask.isBiped = metadata.modelBoneHumanoidAssignments.IsBiped;
                 }
                 Msg("Finding if we set up VRIK and are biped.");
                 //this has value shouldn't throw an error because it was assigned above.
-                if (!foundvrik && task.fileImportTask.isBiped.Value)
+                if (!foundvrik && (task.fileImportTask.isBiped.Value))
                 {
                     Msg("We have not set up vrik!");
 
 
                     //put our stuff under a slot called rootnode so froox engine can set this model up as an avatar
-
+                    await default(ToWorld);
                     Slot rootnode = task.Prefabdata.RootSlot.AddSlot("RootNode");
                     rootnode.LocalScale *= metadata.GlobalScale;
                     foreach (Slot prefabImmediateChild in task.Prefabdata.RootSlot.Children.ToArray())
@@ -343,20 +364,28 @@ public class UnityPackageImporter : ResoniteMod
 
                     Msg("Scaling up/down armature to file's global scale.");
                     //make the bone distances bigger since this model's file may have been exported 100X smaller
-                    foreach (Slot slot in task.Prefabdata.RootSlot.GetAllChildren(false).ToArray()) {
+                    foreach (Slot slot in rootnode.GetAllChildren(false).ToArray()) {
                         if(null == slot.GetComponent<SkinnedMeshRenderer>())
                         {
+                            await default(ToWorld);
                             Msg("scaling bone " + slot.Name);
                             slot.LocalPosition /= metadata.GlobalScale;
                         }
-                        
-                        
 
-                        if(BodyNode.NONE != metadata.modelBoneHumanoidAssignments.Bones.FirstOrDefault(i => i.Value.Target.Name.Equals(slot.Name)).key)
+
+                        Msg("creating bone colliders for bone " + slot.Name);
+                        BodyNode node = BodyNode.NONE;
+                        try
+                        {
+                            node = metadata.modelBoneHumanoidAssignments.Bones.FirstOrDefault(i => i.Value.Target.Name.Equals(slot.Name)).key;
+                        }
+                        catch (Exception) { } //this is to catch key not found so we shouldn't handle this.
+
+                        if (BodyNode.NONE != node)
                         {
                             Msg("finding length of bone " + slot.Name);
                             float3 v = float3.Zero;
-                            Msg("creating colliders for bone " + slot.Name);
+                            Msg("finding bone length " + slot.Name);
                             foreach (Slot child in slot.Children.ToArray())
                             {
                                 float3 globalPoint = child.GlobalPosition;
@@ -368,6 +397,7 @@ public class UnityPackageImporter : ResoniteMod
                             }
                             foreach (Slot child in slot.Children.ToArray())
                             {
+                                await default(ToWorld);
                                 float3 globalPoint = child.GlobalPosition;
                                 float value = v.Magnitude * 0.125f;
                                 float magnitude = v.Magnitude;
@@ -382,7 +412,7 @@ public class UnityPackageImporter : ResoniteMod
                                 floatQ b = floatQ.FromToRotation(in globalPoint2, in to);
                                 slotcollider.LocalRotation = a * b;
 
-
+                                await default(ToWorld);
                                 CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
                                 capsuleCollider.Radius.Value = value;
                                 capsuleCollider.Height.Value = magnitude;
@@ -396,9 +426,11 @@ public class UnityPackageImporter : ResoniteMod
 
 
                     Msg("attaching VRIK");
+                    await default(ToWorld);
                     VRIK vrik = prefab.RootSlot.AttachComponent<VRIK>();
 
                     Msg("Initializing VRIK");
+                    await default(ToWorld);
                     vrik.Solver.SimulationSpace.Target = prefab.RootSlot.Parent;
                     vrik.Solver.OffsetSpace.Target = prefab.RootSlot.Parent;
                     vrik.Initiate(); //create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot, 
@@ -412,6 +444,7 @@ public class UnityPackageImporter : ResoniteMod
             }
             foreach (Slot oldSlot in oldSlots.ToArray())
             {
+                await default(ToWorld);
                 oldSlot.Destroy();
             }
 
@@ -419,6 +452,7 @@ public class UnityPackageImporter : ResoniteMod
             await default(ToBackground);
             Msg("Finished Handling Lagged Import Tasks");
             Tasks.Clear(); // Very important since it's a static variable! This needs to be called at least at the end of importing.
+            TasksMaterials.Clear(); // Very important since it's a static variable! This needs to be called at least at the end of importing.
         }
 
         private static IEnumerable<string> FindPrefabsAndMetas(Slot root, IEnumerable<string> files, bool forceUnknown, out SharedData __state)
@@ -456,7 +490,7 @@ public class UnityPackageImporter : ResoniteMod
 
             //we make a dictionary that associates the GUID of unity files with their paths. The files given to us are in a cache, with the directories already structured properly and the names fixed.
             // all we do is read the meta file and steal the GUID from there to get our identifiers in the Prefabs
-
+            bool flag = true;
             foreach (var file in files)
             {
                 var ending = Path.GetExtension(file).ToLower();
@@ -471,6 +505,11 @@ public class UnityPackageImporter : ResoniteMod
                         __state.AssetIDDict.Add(fileGUID, filename); // the GUID is on the first line (not 0th) after a colon and space, so trim it to get id.
                         __state.FileName_To_AssetIDDict.Add(filename, fileGUID); //have a flipped one for laters. I know I'm not very efficient with this one.
                         __state.ListOfMetas.Add(file);
+                        if (flag)
+                        {//create our unity import assets root if we are importing metas in this file list.
+                            __state.importTaskAssetRoot = Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImportAssets");
+                            flag = false;
+                        }
                         break;
                 }
             }
@@ -629,7 +668,7 @@ public class UnityPackageImporter : ResoniteMod
                             if (((Slot)entities[entityID]).Name.Equals(Path.GetFileNameWithoutExtension(prefab))) {
                                 prefabslot = (Slot)entities[entityID];
                                 prefabslot.PositionInFrontOfUser(); //to put our import in front of us.
-                                prefabslot.Name += ".prefab";
+                                prefabslot.Name += UNITY_PREFAB_EXTENSION;
                             }
 
                         }
@@ -874,16 +913,17 @@ public class UnityPackageImporter : ResoniteMod
                                 //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
                                 //this way, we know which id's go to which bones. Then it's as easy as putting them together.
 
-
+                                var allTasks = new List<FileImportHelperTaskMaterial>();
+                                allTasks.AddRange(TasksMaterials);
+                                allTasks.AddRange(tempTasksMaterials);
                                 string materialID = line.Split(':')[2].Split(',')[0].Trim();
                                 Msg("Material id is: \"" + materialID + "\"");
-                                if (!TasksMaterials.Exists(i => i.myID == materialID))
+                                if (!allTasks.Exists(i => i.myID == materialID))
                                 {
                                     Msg("Adding material to list since it's not in the list of all materials");
                                     try
                                     {
-                                        //TODO: UNCOMMENT =========================================================================
-                                        //tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), ((Slot)entities[otherid]).World.AssetsSlot, __state));
+                                        tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), __state));
                                     }
                                     catch (Exception e)
                                     {
@@ -926,6 +966,7 @@ public class UnityPackageImporter : ResoniteMod
                                 Msg("id is not made, creating slot");
                                 entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
                                 break;
+
                             }
                         }
                         else if (line.StartsWith("  m_Mesh: "))
@@ -958,10 +999,11 @@ public class UnityPackageImporter : ResoniteMod
                                     {//if not found, make a new one.
 
                                         currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]),
-                                        new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
+                                        new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID, __state),
                                             meshFileID,
                                             new PrefabData());
                                     }
+
 
                                 }
                                 catch (Exception e)
@@ -1026,16 +1068,19 @@ public class UnityPackageImporter : ResoniteMod
                                 //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
                                 //this way, we know which id's go to which bones. Then it's as easy as putting them together.
 
+                                var allTasks = new List<FileImportHelperTaskMaterial>();
+                                allTasks.AddRange(TasksMaterials);
+                                allTasks.AddRange(tempTasksMaterials);
 
                                 string materialID = line.Split(':')[2].Split(',')[0].Trim();
                                 Msg("Material id is: \""+ materialID + "\"");
-                                if (!TasksMaterials.Exists(i => i.myID == materialID))
+                                if (!allTasks.Exists(i => i.myID == materialID))
                                 {
                                     Msg("Adding material to list since it's not in the list of all materials");
                                     try
                                     {
 
-                                        //tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), ((Slot)entities[otherid]).World.AssetsSlot, __state));
+                                        tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), __state));
                                     }
                                     catch(Exception e)
                                     {
@@ -1112,7 +1157,7 @@ public class UnityPackageImporter : ResoniteMod
 
                                         currentEntityImportTaskHolder = new ImportTaskClass(
                                             ((Slot)entities[otherid]), 
-                                            new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID),
+                                            new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID, __state),
                                             meshFileID,
                                             new PrefabData());
                                     }

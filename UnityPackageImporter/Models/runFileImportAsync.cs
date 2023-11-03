@@ -17,19 +17,19 @@ namespace UnityPackageImporter.Models
         public string file;
         public string assetID;
         public bool? isBiped = null;
-
+        public SharedData __state;
         public Task task;
 
         Slot targetSlot;
         public bool postprocessfinished = false;
 
-        public FileImportHelperTaskMesh(string file, Slot targetSlot, string assetID)
+        public FileImportHelperTaskMesh(string file, Slot targetSlot, string assetID, SharedData __state)
         {
             this.targetSlot = targetSlot;
             this.file = file;
             this.assetID = assetID;
             this.isBiped = null;
-
+            this.__state = __state;
             this.task = targetSlot.StartGlobalTask(async () => await runImportFileMeshesAsync());
         }
 
@@ -67,7 +67,7 @@ namespace UnityPackageImporter.Models
             UnityPackageImporter.Msg("Preprocessing scene for file " + file);
             PreprocessScene(scene);
             UnityPackageImporter.Msg("making model import data for file: " + file);
-            this.data = new ModelImportData(file, scene, this.targetSlot, this.targetSlot.World.AssetsSlot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
+            this.data = new ModelImportData(file, scene, this.targetSlot, __state.importTaskAssetRoot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
             UnityPackageImporter.Msg("importing node into froox engine, file: " + file);
             Task.WaitAll(recursiveNodeParserAsync(scene.RootNode, targetSlot, data));
             UnityPackageImporter.Msg("Finishing task for file " + file);
