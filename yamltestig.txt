@@ -1,0 +1,168 @@
+using System.Collections.Generic;
+using System.IO;
+using System;
+using YamlDotNet.Core;
+using YamlDotNet.Core.Events;
+using YamlDotNet.Serialization;
+
+public class Program
+{
+	public static void Main()
+	{
+		//objwithdict obj = new objwithdict();
+		string createdobj = @"
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6171425307844536358
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6171425307844310086}
+  m_Layer: 0
+  m_Name: Middle Distal.L
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6171425307844310086
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6171425307844536358}
+  m_LocalRotation: {x: -0.000566836, y: -0.12217824, z: 0.019729836, w: 0.9923119}
+  m_LocalPosition: {x: -1.4901161e-10, y: 0.00067465537, z: -7.8231094e-10}
+  m_LocalScale: {x: 1.0000001, y: 0.9999999, z: 1}
+  m_Children:
+  - {fileID: 6171425307844310088}
+  m_Father: {fileID: 6171425307844310094}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}";
+		//obj.dictionary.Add("key", "value");
+		//obj.dictionary.Add("key2", "value2");
+		List<object> unityprefabobjects = new List<object>();
+		
+		
+		var input = new StringReader(createdobj);
+
+		var deserializer = new DeserializerBuilder().WithNodeTypeResolver(new UnityNodeTypeResolver()).IgnoreUnmatchedProperties().Build();
+
+		var parser = new Parser(input);
+
+		
+		parser.Consume<StreamStart>();
+		DocumentStart variable;
+		while (parser.Accept<DocumentStart>(out variable) == true){
+			// Deserialize the document
+			var doc = deserializer.Deserialize(parser);
+
+			unityprefabobjects.Add(doc);
+		}
+		Console.WriteLine(unityprefabobjects[0].GetType());
+	}
+}
+
+public class GameObject: IUnityObject
+{
+    public string m_Name;
+    public int m_IsActive = 1;
+	
+	public int id { get; set; }
+	public GameObject()
+    {
+		
+	}
+	
+}
+
+public interface IUnityObject{
+	int id {get; set;}
+}
+
+
+
+
+[Serializable]
+public class Transform: IUnityObject{
+    public Dictionary<string, int> m_GameObject;
+    public Dictionary<string, int> m_LocalRotation;
+    public Dictionary<string, int> m_LocalPosition;
+    public Dictionary<string, int> m_LocalScale;
+    public Dictionary<string, int> m_Father;
+	
+	public int id {get; set;}
+	
+    public int m_FatherID;
+    public int m_GameObjectID;
+
+    public Transform()
+    {
+    }
+}
+
+class UnityNodeTypeResolver : INodeTypeResolver
+{
+    private const string UnityTagPrefix = "tag:unity3d.com,2011:";
+
+    public bool Resolve(NodeEvent nodeEvent, ref Type currentType)
+    {
+        if (nodeEvent.Tag != null && nodeEvent.Tag.Value.StartsWith(UnityTagPrefix))
+        {
+            int unityObjectId;
+
+            if (!int.TryParse(nodeEvent.Tag.Value.Replace(UnityTagPrefix, ""), out unityObjectId))
+                return false;
+
+            Type unityObjectName;
+            if (UnityObjectMapping.IdToTypeName.TryGetValue(unityObjectId, out unityObjectName))
+            {
+                try
+                {
+                    currentType = unityObjectName;
+
+                    if (currentType != null)
+                        return true;
+
+                    // do default behaviour 
+                    // see https://github.com/aaubry/YamlDotNet/blob/master/YamlDotNet/Serialization/NodeTypeResolvers/DefaultContainersNodeTypeResolver.cs
+                    if (nodeEvent is SequenceStart)
+                    {
+                        currentType = typeof(List<object>);
+                        return true;
+                    }
+                    if (nodeEvent is MappingStart)
+                    {
+                        currentType = typeof(Dictionary<object, object>);
+                        return true;
+                    }
+                }
+                catch
+                {
+                    currentType = typeof(object);
+                }
+                
+
+                
+            }
+
+
+        }
+
+        return false;
+    }
+}
+
+class UnityObjectMapping
+{
+    public static Dictionary<int, Type> IdToTypeName = new Dictionary<int, Type>()
+    {
+        { 1,  typeof(GameObject) },
+        { 4,  typeof(Transform) }
+	};
+}

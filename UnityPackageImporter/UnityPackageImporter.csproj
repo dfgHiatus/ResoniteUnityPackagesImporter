@@ -57,11 +57,26 @@
     <Reference Include="Elements.Core">
       <HintPath>$(GamePath)Resonite_Data\Managed\Elements.Core.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(GamePath)Resonite_Data/Managed/UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityFrooxEngineRunner">
+      <HintPath>$(GamePath)Resonite_Data/Managed/UnityFrooxEngineRunner.dll</HintPath>
+    </Reference>
     <Reference Include="FrooxEngine">
-      <HintPath>$(GamePath)Resonite_Data\Managed\FrooxEngine.dll</HintPath>
+      <HintPath>$(GamePath)Resonite_Data/Managed/FrooxEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GamePath)Resonite_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="FrooxEngine.Store">
+      <HintPath>$(GamePath)Resonite_Data/Managed\FrooxEngine.Store.dll</HintPath>
     </Reference>
     <Reference Include="ResoniteModLoader">
       <HintPath>$(GamePath)Libraries\ResoniteModLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="YamlDotNet">
+      <HintPath>$(GamePath)rml_libs\YamlDotNet.dll</HintPath>
     </Reference>
     <Reference Include="SkyFrost.Base">
       <HintPath>$(GamePath)Resonite_Data\Managed\SkyFrost.Base.dll</HintPath>
@@ -69,6 +84,12 @@
     <Reference Include="System" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Component.cs" />
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\NullType.cs" />
+    <Compile Include="FrooxEngineRepresentation\IUnityObject.cs" />
+    <Compile Include="FrooxEngineRepresentation\UnityNodeTypeResolver.cs" />
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Transform.cs" />
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\GameObject.cs" />
     <Compile Include="Models\FileImportHelperTaskMaterial.cs" />
     <Compile Include="Models\MetaDataFile.cs" />
     <Compile Include="Models\ImportTaskClass.cs" />

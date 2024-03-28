@@ -2,6 +2,7 @@
 using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.FinalIK;
+using FrooxEngine.ProtoFlux;
 using HarmonyLib;
 using ResoniteModLoader;
 using System;
@@ -9,19 +10,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using UnityPackageImporter.Extractor;
-using Assimp;
-using Assimp.Configs;
+using UnityPackageImporter.FrooxEngineRepresentation;
 using UnityPackageImporter.Models;
-using static FrooxEngine.ModelImporter;
-using Mono.Cecil.Cil;
-using static FrooxEngine.ModelExporter;
-using FrooxEngine.Undo;
-using static FrooxEngine.Rig;
-using Mono.Cecil;
-using static FrooxEngine.MeshUploadHint;
-using Microsoft.Cci.Pdb;
+using YamlDotNet.Core;
+using YamlDotNet.Core.Events;
+using YamlDotNet.RepresentationModel;
+using YamlDotNet.Serialization;
 
 namespace UnityPackageImporter;
 
@@ -522,686 +519,56 @@ public class UnityPackageImporter : ResoniteMod
         }
 
 
-        
-
-        private static PrefabData LoadPrefabUnity(IEnumerable<string> files, SharedData __state, Slot parentUnder, string PrefabID)
+        private static void LoadPrefabUnity(IEnumerable<string> files, SharedData __state, Slot parentUnder, string PrefabID)
         {
             string prefab = __state.AssetIDDict.GetValueSafe(PrefabID);
             var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(prefab));
             prefabslot.SetParent(parentUnder,false);
 
             //begin the parsing of our prefabs.
+            //begin the parsing of our prefabs.
 
             //parse loop
-            //how the objects are ordered can be random in a prefab. But the good thing is everything is connected via ID's
-            //There is also a header on each object that tells us the ID of the object within this prefab. Weither that be a component or a slot (GameObject)
-            //Using this, we can make a flat tree of objects and then construct it into a FrooxEngine object.
+            //now using the power of yaml we can make this a bit more reliable and hopefully smaller.
+            //reading unity prefabs as yaml allows us to much more easily obtain the data we need.
+            //Unity yamls are different, but with a little trickery we can still read them with a library.
 
 
-            //general component/slot tags
-            bool startParseEntity = false;
-            string typeofobj = string.Empty;
-            string entityID = string.Empty;
-            var otherid = string.Empty;
-            var foundtransform = false;
 
-            //particle system tags
+            using var sr = File.OpenText(prefab);
 
-            //we're gonna use an int with this, here's the key
-            /*
-             * inStartColor = 0
-             * inStartSize = 1
-             * inGravityModifier = 2
-             * inEmissionModule = 3
-             */
-            //need to do particle system parsing...
-            //int particletag = -1;
+            Dictionary<ulong, IUnityObject> unityprefabobjects = new Dictionary<ulong, IUnityObject>();
 
-            //skinned mesh renderer tags
-            bool inBoneSection = false;
-            bool inMatSection = false;
+            var deserializer = new DeserializerBuilder().WithNodeTypeResolver(new UnityNodeTypeResolver()).IgnoreUnmatchedProperties().Build();
 
-            
-            List<string> tempBoneArrayIDs = new List<string>();
-            List<string> tempMaterialArrayIDs = new List<string>();
-            List<FileImportHelperTaskMaterial> tempTasksMaterials = new List<FileImportHelperTaskMaterial>();
+            var parser = new Parser(sr);
 
 
-            List<ImportTaskClass> tasksTemp = new();
-            Dictionary<string, IWorldElement> entities = new();
-            Dictionary<string, string> entityChildID_To_EntityParentID = new();
-            //orphan transforms temp storage
-            Dictionary<string, string> orphanTransforms_Child_To_Parent = new ();
-            ImportTaskClass currentEntityImportTaskHolder = new ImportTaskClass();
-
-            foreach (string line in File.ReadLines(prefab))
+            parser.Consume<StreamStart>();
+            DocumentStart variable;
+            while (parser.Accept<DocumentStart>(out variable) == true)
             {
-                //tag if we are in an object
-                if (line.StartsWith("--- !u!"))
-                {
-                    startParseEntity = true;
-                    entityID = line.Split('&')[1];
-                    continue;
-                }
-
-                //startparseentity being set to true means we have found a new object. So time to switch our code.
-                if (startParseEntity)
-                {
-                    typeofobj = line.Split(':')[0];
-                    startParseEntity = false; //switch to false so we know we should parse whatever this is until we hit the next component/slot
-
-                    //add this entity to a list of IWorldElements so we can put them where they should go.
-                    switch (typeofobj)
-                    {
-                        case "Transform":
-                            Msg("Start TransformComponent interpreting");
-                            break;
-                        case "GameObject":
-                            Msg("Start GameObject interpreting");
-                            if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
-                                entities.Add(entityID, Engine.Current.WorldManager.FocusedWorld.AddSlot(string.Empty));
-                            foundtransform = false;
-                            break;
-                        case "ParticleSystem":
-                            Msg("Start ParticleSystem interpreting");
-                            //particletag = -1;
-                            break;
-                        case "MeshFilter":
-                            Msg("Start MeshFilter interpreting");
-                            //nothing needed here yet
-                            break;
-                        case "MeshRenderer":
-                            Msg("Start MeshRenderer interpreting");
-                            //nothing needed here yet
-                            break;
-                        case "SkinnedMeshRenderer":
-                            Msg("Start SkinnedMeshRenderer interpreting");
-                            inBoneSection = false;
-                            break;
-                        default:
-                            Msg("Unidentified component \""+ typeofobj+"\"");
-                            break;
-                    }
-
-                    continue;
-                }
-
-
-                //now we know what kind of entity/obj, time to parse it's data.
-                switch (typeofobj)
-                {
-                    case "GameObject":
-                        //this assumes transform is first in the component list which is a good assumption because it always forces itself at the top in unity.
-                        //since we handle adding components within the component adding blocks along with the slot, if we add it here we can
-                        //assume it will be there at the end of all of this.
-
-                        //if only starts with worked with a switch
-                        if (line.StartsWith("  - component") && foundtransform == false)
-                        {
-                            /*DebugMSG*/
-                            Msg("found transform component ref for game object, adding");
-                            otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            if (!entityChildID_To_EntityParentID.ContainsKey(otherid))
-                            {
-                                entityChildID_To_EntityParentID.Add(otherid, entityID);
-                            }
-
-                            foundtransform = true;
-                            break;
-                        }
-                        else if (line.StartsWith("  - component"))
-                        {
-                            /*DebugMSG*/
-                            Msg("found non transform component ref for game object, adding parent child relationship");
-                            otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            if (!entityChildID_To_EntityParentID.ContainsKey(otherid))
-                            {
-                                entityChildID_To_EntityParentID.Add(otherid, entityID);
-                            }
-                        }
-                        else if (line.StartsWith("  m_Name: "))
-                        {
-                            /*DebugMSG*/
-                            Msg("found name for game object, setting");
-                            ((Slot)entities[entityID]).Name = line.Remove(0, "  m_Name: ".Length);
-
-                            if (((Slot)entities[entityID]).Name.Equals(Path.GetFileNameWithoutExtension(prefab))) {
-                                prefabslot = (Slot)entities[entityID];
-                                prefabslot.PositionInFrontOfUser(); //to put our import in front of us.
-                                prefabslot.Name += UNITY_PREFAB_EXTENSION;
-                            }
-
-                        }
-                        else if (line.StartsWith("  m_TagString: "))
-                        {
-                            //idk if we need this, but it's cool.
-                            /*DebugMSG*/
-                            Msg("found tag for game object, setting");
-                            string tag = line.Remove(0, "  m_TagString: ".Length);
-                            if (!tag.Equals("Untagged"))
-                            {
-                                ((Slot)entities[entityID]).Tag = tag;
-                            }
-                        }
-                        else if (line.StartsWith("  m_IsActive: "))
-                        {
-                            /*DebugMSG*/
-                            Msg("found active for game object, setting");
-                            ((Slot)entities[entityID]).ActiveSelf = line.Remove(0, "  m_IsActive: ".Length).Trim().Equals("1");
-                        }
-
-
-
-
-
-
-
-
-                        break;
-                    case "Transform":
-
-                        //if only starts with worked with a switch
-                        if (line.StartsWith("  m_GameObject: "))
-                        {
-                            /*DebugMSG*/
-                            Msg("found game object parent ref id, checking");
-                            otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            /*DebugMSG*/
-                            Msg("id is \"" + otherid + "\"");
-                            if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
-                            {
-                                entityChildID_To_EntityParentID.Add(entityID, otherid);
-                            }
-
-
-
-                        }
-                        else if (line.StartsWith("  m_LocalRotation:"))
-                        {
-                            float x = 0;
-                            float y = 0;
-                            float z = 0;
-                            float w = 0;
-
-                            //hehe. here's the reference line from a prefab to help who's reading this garbage to understand: "  m_LocalRotation: {x: -0.013095013, y: -0.06099344, z: -0.00031075111, w: 0.99805224}"
-                            float.TryParse(line.Split(',')[0].Split(':')[2].Trim(), out x);
-                            float.TryParse(line.Split(',')[1].Split(':')[1].Trim(), out y);
-                            float.TryParse(line.Split(',')[2].Split(':')[1].Trim(), out z);
-                            float.TryParse(line.Split(',')[3].Split(':')[1].Split('}')[0].Trim(), out w);
-
-                            ((Slot)entities[otherid]).LocalRotation = new floatQ(x, y, z, w);
-
-
-
-
-                        }
-                        else if (line.StartsWith("  m_LocalPosition:"))
-                        {
-                            float x = 0;
-                            float y = 0;
-                            float z = 0;
-
-                            //hehe. here's the reference line from a prefab to help who's reading this garbage to understand: "  m_LocalPosition: {x: -0.013095013, y: -0.06099344, z: -0.00031075111}"
-                            float.TryParse(line.Split(',')[0].Split(':')[2].Trim(), out x);
-                            float.TryParse(line.Split(',')[1].Split(':')[1].Trim(), out y);
-                            float.TryParse(line.Split(',')[2].Split(':')[1].Split('}')[0].Trim(), out z);
-
-                            ((Slot)entities[otherid]).LocalPosition = new float3(x, y, z);
-
-
-                        }
-                        else if (line.StartsWith("  m_LocalScale:"))
-                        {
-                            float x = 0;
-                            float y = 0;
-                            float z = 0;
-
-                            //hehe. here's the reference line from a prefab to help who's reading this garbage to understand: "  m_LocalScale: {x: -0.013095013, y: -0.06099344, z: -0.00031075111}"
-                            float.TryParse(line.Split(',')[0].Split(':')[2].Trim(), out x);
-                            float.TryParse(line.Split(',')[1].Split(':')[1].Trim(), out y);
-                            float.TryParse(line.Split(',')[2].Split(':')[1].Split('}')[0].Trim(), out z);
-
-                            ((Slot)entities[otherid]).LocalScale = new float3(x, y, z);
-                        }
-                        else if (line.StartsWith("  m_Father:"))
-                        {
-
-                            //finding this transform object's parent slot. if not, store to a temp array;
-
-                            //here the child transform block could have been made before or after the transform, making finding the slot first impossible. We have to parent later if we can't find it.
-
-                            string parentTransformComponentID = line.Split(':')[2].Split('}')[0].Trim();
-
-                            if (entityChildID_To_EntityParentID.ContainsKey(parentTransformComponentID))
-                            {
-                                ((Slot)entities[otherid]).SetParent(((Slot)entities[entityChildID_To_EntityParentID[parentTransformComponentID]]), false);
-                            }
-                            else
-                            {
-                                if (!orphanTransforms_Child_To_Parent.ContainsKey(entityID))
-                                {
-                                    orphanTransforms_Child_To_Parent.Add(entityID, parentTransformComponentID);
-                                }
-
-                            }
-
-                            //this is garbage, but unity prefabs have forced my hand
-                            //basically children transforms can appear after the transform tries to reference it
-                            //in coding this is awful. So I have to iterate over freaking everything to find ones that were instantiated
-                            //before their children. Pain. - @989onan
-                            List<string> removelist = new List<string>();
-                            foreach (var pair in orphanTransforms_Child_To_Parent.AsParallel())
-                            {
-                                if (pair.Value == entityID)
-                                {
-                                    try
-                                    {
-                                        ((Slot)entities[entityChildID_To_EntityParentID[pair.Key]]).SetParent(((Slot)entities[otherid]), false);
-                                        removelist.Add(pair.Key);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        /*DebugMSG*/
-                                        Msg(e.StackTrace);
-                                    }
-                                }
-
-
-                            }
-                            foreach (string key in removelist)
-                            {
-                                orphanTransforms_Child_To_Parent.Remove(key);
-                            }
-
-                            //finally fix our transforms
-                            //((Slot)entities[otherid])
-
-                            //    .ToEngine().Decompose(out var position, out var rotation, out var scale);
-
-
-                        }
-                        break;
-                    case "ParticleSystem":
-                        if (line.StartsWith("  m_GameObject: "))
-                        {
-                            /*DebugMSG*/
-                            Msg("found game object parent ref id, checking");
-                            otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            /*DebugMSG*/
-                            Msg("id is \"" + otherid + "\"");
-                            if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
-                            {
-                                entityChildID_To_EntityParentID.Add(entityID, otherid);
-                                if (!entities.ContainsKey(otherid))
-
-                                {//now since we add the game object if it appears before this component, and add it prematurely before it appears, now we can assemble 1/2 of the game object in both places
-                                 //eventually it will be 100% complete at the end.
-                                 //it's not great coding, but it works.
-                                 // if we find the component after the game object is created, the slot will be created here and added to when we find the game object so can just add our component right after this.
-                                    /*DebugMSG*/Msg("id is not made, creating slot");
-                                    entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
-
-                                    break;
-                                }
-
-                                entities.Add(entityID, ((Slot)entities[otherid]).AttachComponent<ParticleSystem>());
-
-                            }
-                        }
-
-                        //this can be fixed later, but looking at a prefab idk what this garbage means - @989onan
-                        //this is at least a start on how to handle particle systems. Again idk how to implement this.
-                        /*
-                              startSize:
-                                  serializedVersion: 2
-                                  minMaxState: 3
-                                  scalar: 0.025
-                                  minScalar: 0.01
-                                  maxCurve:
-                        */
-
-
-
-                        if (entities.ContainsKey(entityID))
-                        {
-                            ParticleSystem thisComponent = (ParticleSystem)entities[entityID];
-                            //use this to know what data you're parsing, since it can repeat the same line in the same component. but they're split by lines that determine the sections like these.
-                            if (line.StartsWith("    startColor:"))
-                            {
-                                //particletag = 0;
-
-                            }
-                            else if (line.StartsWith("    startSize:"))
-                            {
-                                //particletag = 1;
-                            }
-                            else if (line.StartsWith("    gravityModifier:"))
-                            {
-                                //particletag = 2;
-                            }
-                            else if (line.StartsWith("  EmissionModule:"))
-                            {
-                                //particletag = 3;
-                            }
-                        }
-
-
-
-
-
-
-
-
-
-                        break;
-                    case "MeshFilter":
-
-
-                        
-
-
-                        if (inMatSection)
-                        {
-                            if (line.StartsWith("  - {fileID:"))
-                            {
-                                //this runs after the file is imported
-                                //though looking at sourcecode via DNSpy (which is okay according to TOS of Resonite), the importer runs on an async task, so this is annoying...
-
-
-
-                                //This code finds the bone list that this model has and adds it to a list of bone ID's
-                                //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
-                                //this way, we know which id's go to which bones. Then it's as easy as putting them together.
-
-                                var allTasks = new List<FileImportHelperTaskMaterial>();
-                                allTasks.AddRange(TasksMaterials);
-                                allTasks.AddRange(tempTasksMaterials);
-                                string materialID = line.Split(':')[2].Split(',')[0].Trim();
-                                Msg("Material id is: \"" + materialID + "\"");
-                                if (!allTasks.Exists(i => i.myID == materialID))
-                                {
-                                    Msg("Adding material to list since it's not in the list of all materials");
-                                    try
-                                    {
-                                        tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), __state));
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        Msg("Couldn't find material with ID: \"" + materialID + "\"!! Stacktrace:");
-                                        Msg(e.StackTrace);
-                                    }
-                                }
-                                tempMaterialArrayIDs.Add(materialID);
-
-
-
-                            }
-                            else
-                            {
-
-                                currentEntityImportTaskHolder.materialArrayIDs = tempMaterialArrayIDs.ToArray().ToList();
-                                inMatSection = false;
-                                tempMaterialArrayIDs.Clear(); //clear our bones for the next skinned mesh renderer parse
-                                Msg("Scanned material list");
-                                Msg("found \"" + currentEntityImportTaskHolder.materialArrayIDs.Count().ToString() + "\" materials in mesh " + entities[otherid].Name);
-                            }
-                        }
-                        else if (line.StartsWith("  m_GameObject: "))
-                        {
-                            /*DebugMSG*/
-                            Msg("found game object parent ref id, checking");
-                            otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            /*DebugMSG*/
-                            Msg("id is \"" + otherid + "\"");
-                            if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
-                            {
-                                entityChildID_To_EntityParentID.Add(entityID, otherid);
-                            }
-                            if (!entities.ContainsKey(otherid))
-                            {//now since we add the game object if it appears before this component, and add it prematurely before it appears, now we can assemble 1/2 of the game object in both places
-                             //eventually it will be 100% complete at the end.
-                             //it's not great coding, but it works.
-                             // if we find the component after the game object is created, the slot will be created here and added to when we find the game object so can just add our component right after this.
-                                /*DebugMSG*/
-                                Msg("id is not made, creating slot");
-                                entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
-                                break;
-
-                            }
-                        }
-                        else if (line.StartsWith("  m_Mesh: "))
-                        {
-                            /*DebugMSG*/
-                            Msg("found mesh, parsing");
-                            var meshFileID = line.Split(':')[2].Split(',')[0].Trim();//this is on purpose, because a line for the m_Mesh looks like this: "  m_Mesh: {fileID: 4300000, guid: d6ba91ccc11280d4da45a2d1c17d88ba, type: 3}"
-                            var modelFileGUID = line.Split(':')[3].Split(',')[0].Trim();
-                            /*DebugMSG*/
-                            Msg("mesh ref id is: \"" + modelFileGUID + "\"");
-                            var meshtype = int.Parse(line.Split(':')[4].Split('}')[0].Trim()); //same here
-
-                            if (meshtype == 3)
-                            {
-                                //this will load the mesh, which is actually a file, and load it into the slot this component should be on.
-                                try {
-                                    var allTasks = new List<ImportTaskClass>();
-                                    allTasks.AddRange(tasksTemp);
-                                    allTasks.AddRange(Tasks);
-                                    ImportTaskClass importingExists;
-                                    try//if this try fails, then a not found exception should have been thrown, allowing us to continue
-                                    {
-                                        importingExists = allTasks.First(i => i.fileImportTask.assetID.Equals(modelFileGUID));
-                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]),
-                                            importingExists.fileImportTask,
-                                            meshFileID,
-                                            new PrefabData());
-                                    }
-                                    catch (InvalidOperationException)
-                                    {//if not found, make a new one.
-
-                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]),
-                                        new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID, __state),
-                                            meshFileID,
-                                            new PrefabData());
-                                    }
-
-
-                                }
-                                catch (Exception e)
-                                {
-                                    Msg("could not find mesh reference!!! Did you forget to import the model along with the prefab at the same time?");
-                                    Msg("ERROR BELOW:");
-                                    Msg(e.StackTrace);
-                                }
-
-                            }
-                            else if (line.StartsWith("  m_Materials:"))
-                            {
-                                inMatSection = true;
-                                break;
-                            }
-
-                        }
-
-                        break;
-                    case "SkinnedMeshRenderer":
-                        if (inBoneSection)
-                        {
-                            if (line.StartsWith("  - {fileID: "))
-                            {
-                                //this runs after the file is imported
-                                //though looking at sourcecode via DNSpy (which is okay according to TOS of Resonite), the importer runs on an async task, so this is annoying...
-
-
-
-                                //This code finds the bone list that this model has and adds it to a list of bone ID's
-                                //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
-                                //this way, we know which id's go to which bones. Then it's as easy as putting them together.
-
-
-
-
-                                tempBoneArrayIDs.Add(line.Split(':')[1].Split('}')[0].Trim());
-
-
-
-                            }
-                            else
-                            {
-                                currentEntityImportTaskHolder.BoneArrayIDs = tempBoneArrayIDs.ToArray().ToList();
-                                tasksTemp.Add(currentEntityImportTaskHolder);
-                                inBoneSection = false;
-                                tempBoneArrayIDs.Clear(); //clear our bones for the next skinned mesh renderer parse
-                                Msg("Scanned bone list");
-                                Msg("found \"" + currentEntityImportTaskHolder.BoneArrayIDs.Count().ToString() + "\" bones in mesh " + entities[otherid].Name);
-                            }
-                        }
-                        else if (inMatSection)
-                        {
-                            if (line.StartsWith("  - {fileID:"))
-                            {
-                                //this runs after the file is imported
-                                //though looking at sourcecode via DNSpy (which is okay according to TOS of Resonite), the importer runs on an async task, so this is annoying...
-
-
-
-                                //This code finds the bone list that this model has and adds it to a list of bone ID's
-                                //then we add this to the data that's shoved into the tasks list that gets accessed when the models are done.
-                                //this way, we know which id's go to which bones. Then it's as easy as putting them together.
-
-                                var allTasks = new List<FileImportHelperTaskMaterial>();
-                                allTasks.AddRange(TasksMaterials);
-                                allTasks.AddRange(tempTasksMaterials);
-
-                                string materialID = line.Split(':')[2].Split(',')[0].Trim();
-                                Msg("Material id is: \""+ materialID + "\"");
-                                if (!allTasks.Exists(i => i.myID == materialID))
-                                {
-                                    Msg("Adding material to list since it's not in the list of all materials");
-                                    try
-                                    {
-
-                                        tempTasksMaterials.Add(new FileImportHelperTaskMaterial(__state.AssetIDDict[materialID], materialID, ((Slot)entities[otherid]), __state));
-                                    }
-                                    catch(Exception e)
-                                    {
-                                        Msg("Couldn't find material with ID: \"" + materialID + "\"!! Stacktrace:");
-                                        Msg(e.StackTrace);
-                                    }
-                                }
-                                tempMaterialArrayIDs.Add(materialID);
-
-
-
-                            }
-                            else
-                            {
-                                
-                                currentEntityImportTaskHolder.materialArrayIDs = tempMaterialArrayIDs.ToArray().ToList();
-                                inMatSection = false;
-                                tempMaterialArrayIDs.Clear(); //clear our bones for the next skinned mesh renderer parse
-                                Msg("Scanned material list");
-                                Msg("found \"" + currentEntityImportTaskHolder.materialArrayIDs.Count().ToString() + "\" materials in mesh " + entities[otherid].Name);
-                            }
-                        }
-
-
-
-                        if (line.StartsWith("  m_GameObject: "))
-                        {
-                            /*DebugMSG*/Msg("found game object parent ref id, checking");
-                            otherid = line.Split(':')[2].Split('}')[0].Trim();
-                            /*DebugMSG*/Msg("id is \"" + otherid + "\"");
-                            if (!entityChildID_To_EntityParentID.ContainsKey(entityID))
-                            {
-                                entityChildID_To_EntityParentID.Add(entityID, otherid);
-                            }
-                            
-                            if (!entities.ContainsKey(otherid)){//now since we add the game object if it appears before this component, and add it prematurely before it appears, now we can assemble 1/2 of the game object in both places
-                             //eventually it will be 100% complete at the end.
-                             //it's not great coding, but it works.
-                             // if we find the component after the game object is created, the slot will be created here and added to when we find the game object so can just add our component right after this.
-                             /*DebugMSG*/Msg("id is not made, creating slot");
-                                entities.Add(otherid, Engine.Current.WorldManager.FocusedWorld.AddSlot(""));
-                                break;
-                            }
-                        }
-                        else if (line.StartsWith("  m_Mesh: "))
-                        {
-                            /*DebugMSG*/Msg("found mesh, parsing");
-                            var meshFileID = line.Split(':')[2].Split(',')[0].Trim();//this is on purpose, because a line for the m_Mesh looks like this: "  m_Mesh: {fileID: 4300000, guid: d6ba91ccc11280d4da45a2d1c17d88ba, type: 3}"
-                            var modelFileGUID = line.Split(':')[3].Split(',')[0].Trim();
-                            /*DebugMSG*/
-                            Msg("mesh ref id is: \""+ modelFileGUID + "\"");
-                            var meshtype = int.Parse(line.Split(':')[4].Split('}')[0].Trim()); //same here
-
-                            if (meshtype == 3)
-                            {
-                                //this will load the mesh, which is actually an fbx, and load it into the slot this component should be on.
-                                //yes this may run the importer again
-                                //this will load the mesh, which is actually a file, and load it into the slot this component should be on.
-                                try
-                                {
-                                    var allTasks = new List<ImportTaskClass>();
-                                    allTasks.AddRange(tasksTemp);
-                                    allTasks.AddRange(Tasks);
-                                    ImportTaskClass importingExists;
-                                    try//if this try fails, then a not found exception should have been thrown, allowing us to continue
-                                    {
-                                        importingExists = allTasks.First(i => i.fileImportTask.assetID.Equals(modelFileGUID));
-                                        currentEntityImportTaskHolder = new ImportTaskClass(((Slot)entities[otherid]), importingExists.fileImportTask,
-                                            meshFileID,
-                                            new PrefabData());
-                                    }
-                                    catch (InvalidOperationException)
-                                    {//if not found, make a new one.
-
-                                        currentEntityImportTaskHolder = new ImportTaskClass(
-                                            ((Slot)entities[otherid]), 
-                                            new FileImportHelperTaskMesh(__state.AssetIDDict[modelFileGUID], ((Slot)entities[otherid]), modelFileGUID, __state),
-                                            meshFileID,
-                                            new PrefabData());
-                                    }
-
-                                }
-                                catch (Exception e)
-                                {
-                                    Msg("could not find mesh reference!!! Did you forget to import the model along with the prefab at the same time?");
-                                    Msg("ERROR BELOW:");
-                                    Msg(e.StackTrace);
-                                }
-
-                            }
-
-                        }
-                        else if (line.StartsWith("  m_Bones:"))
-                        {
-                            inBoneSection = true;
-
-                            break;
-                        }
-                        else if(line.StartsWith("  m_Materials:")){
-                            inMatSection = true;
-                            break;
-                        }
-                        break;
-                }
+                // Deserialize the document
+                IUnityObject doc = deserializer.Deserialize<IUnityObject>(parser);
+                doc.id = UnityNodeTypeResolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
+                unityprefabobjects.Add(doc.id, doc);
+                
+                
             }
 
-            PrefabData prefabdata = new PrefabData(entities, entityChildID_To_EntityParentID, prefabslot);
 
-            foreach (var task in tasksTemp)
+            //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
+            foreach(var obj in unityprefabobjects)
             {
-                var newtask = task;
-                newtask.Prefabdata = prefabdata;
-                Tasks.Add(newtask);
-            }
-            tasksTemp.Clear();
-            foreach (var task in tempTasksMaterials) {
-                var newtask = task;
-                TasksMaterials.Add(newtask);
+                obj.Value.instanciate(unityprefabobjects);
             }
 
-            return prefabdata;
+            //some debugging for the user to show them it worked or failed.
+            Msg(unityprefabobjects.ToString());
+            Msg(unityprefabobjects.Count);
+            Msg(unityprefabobjects.ToArray().ToString());
+
+            Msg("Yaml dump done");
         }
 
         // private static Task ImportModelUnity(Slot slot, string v)
@@ -1235,7 +602,7 @@ public class UnityPackageImporter : ResoniteMod
             foreach (string Prefab in __state.ListOfPrefabs)
             {
                 Msg("Start prefab import");
-                PrefabData result = LoadPrefabUnity(files, __state, root, __state.FileName_To_AssetIDDict[Prefab]); //did this so something can be done with it later.
+                LoadPrefabUnity(files, __state, root, __state.FileName_To_AssetIDDict[Prefab]); //did this so something can be done with it later.
                 
                 Msg("End prefab import");
             }
