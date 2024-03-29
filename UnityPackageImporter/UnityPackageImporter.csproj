@@ -87,6 +87,7 @@
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Component.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\NullType.cs" />
     <Compile Include="FrooxEngineRepresentation\IUnityObject.cs" />
+    <Compile Include="FrooxEngineRepresentation\UnityEngineObjectWrapper.cs" />
     <Compile Include="FrooxEngineRepresentation\UnityNodeTypeResolver.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Transform.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\GameObject.cs" />

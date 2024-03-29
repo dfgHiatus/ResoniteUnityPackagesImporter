@@ -7,8 +7,8 @@ using YamlDotNet.Serialization;
 using static FrooxEngine.SlotGizmo;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation
-{   
-    
+{
+
     class UnityNodeTypeResolver : INodeTypeResolver
     {
         private const string UnityTagPrefix = "tag:unity3d.com,2011:";
@@ -21,19 +21,23 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 
                 if (!int.TryParse(nodeEvent.Tag.Value.Replace(UnityTagPrefix, ""), out unityObjectId))
                     return false;
+
                 string unityObjectName;
                 if (UnityObjectMapping.IdToTypeName.TryGetValue(unityObjectId, out unityObjectName))
                 {
                     try
                     {
-                        currentType = typeof(UnityPackageImporter).Assembly.GetType("UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes." + unityObjectName);
+
+
+
 
                         if (currentType != null)
                         {
                             anchor = ulong.Parse(nodeEvent.Anchor.Value);
+                            currentType = typeof(UnityEngineObjectWrapper);
                             return true;
                         }
-                        
+
 
                         // do default behaviour 
                         // see https://github.com/aaubry/YamlDotNet/blob/master/YamlDotNet/Serialization/NodeTypeResolvers/DefaultContainersNodeTypeResolver.cs
@@ -50,18 +54,19 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
                     }
                     catch
                     {
-                        
-                        
+                        //anchor = ulong.Parse(nodeEvent.Anchor.Value);
+                        currentType = typeof(UnityEngineObjectWrapper);
+                        return true;
                     }
-                    currentType = typeof(NullType);//the default if we can't implement an object type
-                    anchor = ulong.Parse(nodeEvent.Anchor.Value);
-                    return true;
+
+
 
                 }
+
+
             }
-            currentType = typeof(NullType);//the default if we can't implement an object type
-            anchor = ulong.Parse(nodeEvent.Anchor.Value);
-            return true;
+
+            return false;
         }
     }
 

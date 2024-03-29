@@ -1,6 +1,7 @@
 ﻿using FrooxEngine;
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -35,5 +36,17 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             
         }
 
+        //a detailed to string for debugging.
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder();
+            result.AppendLine("id: " + id.ToString());
+            result.AppendLine("instanciated: " + instanciated.ToString());
+            result.AppendLine("m_IsActive: "+ m_IsActive.ToString());
+            result.AppendLine("m_Name: " + m_Name.ToString());
+            result.AppendLine("frooxEngineSlot: " + frooxEngineSlot.ToString());
+
+            return result.ToString();
+        }
     }
 }

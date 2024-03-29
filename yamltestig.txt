@@ -15,7 +15,7 @@ public class Program
 %TAG !u! tag:unity3d.com,2011:
 --- !u!1 &6171425307844536358
 GameObject:
-  m_ObjectHideFlags: 0
+  m_ObjectHideFlags: 76687
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
@@ -31,7 +31,7 @@ GameObject:
   m_IsActive: 1
 --- !u!4 &6171425307844310086
 Transform:
-  m_ObjectHideFlags: 0
+  m_ObjectHideFlags: 39288904
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
@@ -46,7 +46,7 @@ Transform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}";
 		//obj.dictionary.Add("key", "value");
 		//obj.dictionary.Add("key2", "value2");
-		List<object> unityprefabobjects = new List<object>();
+		List<IUnityObject> unityprefabobjects = new List<IUnityObject>();
 		
 		
 		var input = new StringReader(createdobj);
@@ -60,11 +60,32 @@ Transform:
 		DocumentStart variable;
 		while (parser.Accept<DocumentStart>(out variable) == true){
 			// Deserialize the document
-			var doc = deserializer.Deserialize(parser);
-
-			unityprefabobjects.Add(doc);
+			UnityEngineObjectWrapper doc = deserializer.Deserialize<UnityEngineObjectWrapper>(parser);
+			doc.Result().id = UnityNodeTypeResolver.anchor;
+			unityprefabobjects.Add(doc.Result());
+			Console.WriteLine(doc.Result().GetType().ToString());
 		}
-		Console.WriteLine(unityprefabobjects[0].GetType());
+		//Console.WriteLine(((GameObject)unityprefabobjects[0]));
+	}
+}
+
+public class UnityEngineObjectWrapper
+{
+	public GameObject GameObject;
+	public Transform Transform;
+
+
+	public UnityEngineObjectWrapper()
+	{
+
+	}
+
+	public IUnityObject Result()
+	{
+		return new List<IUnityObject>(){
+			GameObject,
+			Transform
+		}.Find(i => i != null);
 	}
 }
 
@@ -73,7 +94,8 @@ public class GameObject: IUnityObject
     public string m_Name;
     public int m_IsActive = 1;
 	
-	public int id { get; set; }
+	public ulong id { get; set; }
+	public int m_ObjectHideFlags { get; set; }
 	public GameObject()
     {
 		
@@ -82,7 +104,8 @@ public class GameObject: IUnityObject
 }
 
 public interface IUnityObject{
-	int id {get; set;}
+	ulong id {get; set;}
+	int m_ObjectHideFlags { get; set; }
 }
 
 
@@ -90,16 +113,17 @@ public interface IUnityObject{
 
 [Serializable]
 public class Transform: IUnityObject{
-    public Dictionary<string, int> m_GameObject;
-    public Dictionary<string, int> m_LocalRotation;
-    public Dictionary<string, int> m_LocalPosition;
-    public Dictionary<string, int> m_LocalScale;
-    public Dictionary<string, int> m_Father;
+    public Dictionary<string, ulong> m_GameObject;
+    public Dictionary<string, float> m_LocalRotation;
+    public Dictionary<string, float> m_LocalPosition;
+    public Dictionary<string, float> m_LocalScale;
+    public Dictionary<string, ulong> m_Father;
 	
-	public int id {get; set;}
+	public ulong id {get; set;}
 	
     public int m_FatherID;
     public int m_GameObjectID;
+	public int m_ObjectHideFlags { get; set; }
 
     public Transform()
     {
@@ -109,25 +133,33 @@ public class Transform: IUnityObject{
 class UnityNodeTypeResolver : INodeTypeResolver
 {
     private const string UnityTagPrefix = "tag:unity3d.com,2011:";
-
+	public static ulong anchor = 0;
     public bool Resolve(NodeEvent nodeEvent, ref Type currentType)
     {
+		Console.WriteLine("hello");
+		Console.WriteLine(nodeEvent);
         if (nodeEvent.Tag != null && nodeEvent.Tag.Value.StartsWith(UnityTagPrefix))
         {
             int unityObjectId;
 
             if (!int.TryParse(nodeEvent.Tag.Value.Replace(UnityTagPrefix, ""), out unityObjectId))
                 return false;
-
+			
             Type unityObjectName;
             if (UnityObjectMapping.IdToTypeName.TryGetValue(unityObjectId, out unityObjectName))
             {
                 try
                 {
-                    currentType = unityObjectName;
-
-                    if (currentType != null)
+					
+                    
+					
+					
+                    if (currentType != null){
+						anchor = ulong.Parse(nodeEvent.Anchor.Value);
+						currentType = typeof(UnityEngineObjectWrapper);
                         return true;
+					}
+						
 
                     // do default behaviour 
                     // see https://github.com/aaubry/YamlDotNet/blob/master/YamlDotNet/Serialization/NodeTypeResolvers/DefaultContainersNodeTypeResolver.cs
@@ -144,10 +176,12 @@ class UnityNodeTypeResolver : INodeTypeResolver
                 }
                 catch
                 {
-                    currentType = typeof(object);
+					//anchor = ulong.Parse(nodeEvent.Anchor.Value);
+                    currentType = typeof(UnityEngineObjectWrapper);
+					return false;
                 }
                 
-
+				
                 
             }
 

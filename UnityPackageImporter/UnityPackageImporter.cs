@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.Extractor;
 using UnityPackageImporter.FrooxEngineRepresentation;
@@ -543,32 +544,55 @@ public class UnityPackageImporter : ResoniteMod
 
             var parser = new Parser(sr);
 
-
+            StringBuilder debugPrefab = new StringBuilder();
             parser.Consume<StreamStart>();
             DocumentStart variable;
             while (parser.Accept<DocumentStart>(out variable) == true)
             {
                 // Deserialize the document
-                IUnityObject doc = deserializer.Deserialize<IUnityObject>(parser);
-                doc.id = UnityNodeTypeResolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
-                unityprefabobjects.Add(doc.id, doc);
+                try
+                {
+                    UnityEngineObjectWrapper docWrapped = deserializer.Deserialize<UnityEngineObjectWrapper>(parser);
+                    IUnityObject doc = docWrapped.Result();
+                    doc.id = UnityNodeTypeResolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
+                    unityprefabobjects.Add(doc.id, doc);
+                    debugPrefab.Append(doc.ToString());
+                }
+                catch(Exception e)
+                {
+                    Msg("Couldn't evaluate node type. stacktrace below");
+                    Warn(e.Message + e.StackTrace);
+                    try
+                    {
+                        IUnityObject doc = new FrooxEngineRepresentation.GameObjectTypes.NullType();
+                        doc.id = UnityNodeTypeResolver.anchor;
+                        unityprefabobjects.Add(doc.id, doc);
+                        debugPrefab.Append(doc.ToString());
+                    }
+                    catch (ArgumentException e2) {/*idc.*/
+                        Msg("Duplicate key probably. just ignore this.");
+                        Warn(e2.Message + e2.StackTrace);
+                    }
+                    
+                }
+                
                 
                 
             }
 
-
+            //some debugging for the user to show them it worked or failed.
+            Msg(debugPrefab.ToString());
+            Msg(unityprefabobjects.Count);
             //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
-            foreach(var obj in unityprefabobjects)
+            foreach (var obj in unityprefabobjects)
             {
                 obj.Value.instanciate(unityprefabobjects);
             }
 
-            //some debugging for the user to show them it worked or failed.
-            Msg(unityprefabobjects.ToString());
-            Msg(unityprefabobjects.Count);
-            Msg(unityprefabobjects.ToArray().ToString());
+            
+            
 
-            Msg("Yaml dump done");
+            Msg("Yaml generation done");
         }
 
         // private static Task ImportModelUnity(Slot slot, string v)

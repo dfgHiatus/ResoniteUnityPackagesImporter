@@ -1,6 +1,7 @@
 ﻿using Elements.Core;
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -41,15 +42,14 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     parentobj.frooxEngineSlot.LocalPosition = m_LocalPosition;
                     parentobj.frooxEngineSlot.LocalRotation = m_LocalRotation;
                     parentobj.frooxEngineSlot.LocalScale = m_LocalScale;
-                    if (existing_prefab_entries.TryGetValue(m_FatherID, out IUnityObject foundobjectparent) && foundobject.GetType() == typeof(Transform))
+                    if (existing_prefab_entries.TryGetValue(m_FatherID, out IUnityObject foundobjectparent) && foundobjectparent.GetType() == typeof(Transform))
                     {
                         Transform parentTransform = (Transform)foundobjectparent;
 
                         parentTransform.instanciate(existing_prefab_entries);
-                        GameObject parentobj_parent = (GameObject)existing_prefab_entries.GetValueOrDefault(parentTransform.m_GameObjectID);
-                        if (parentobj_parent != null)
+                        if (existing_prefab_entries.TryGetValue(parentTransform.m_GameObjectID, out IUnityObject parentobj_parent) && parentobj_parent.GetType() == typeof(GameObject))
                         {
-                            parentobj.frooxEngineSlot.SetParent(parentobj_parent.frooxEngineSlot);
+                            parentobj.frooxEngineSlot.SetParent(((GameObject)parentobj_parent).frooxEngineSlot);
                         }
                         else
                         {
@@ -73,6 +73,25 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             }
             
 
+        }
+
+        //a detailed to string for debugging.
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder();
+            result.AppendLine("id: " + id.ToString());
+            result.AppendLine("instanciated: " + instanciated.ToString());
+            result.AppendLine("m_GameObjectID: " + m_GameObjectID.ToString());
+            result.AppendLine("m_GameObject: " + m_GameObject.ToString());
+            result.AppendLine("m_Father: " + m_Father.ToString());
+            result.AppendLine("m_FatherID: " + m_FatherID.ToString());
+            result.AppendLine("m_LocalRotation: " + m_LocalRotation.ToString());
+            result.AppendLine("m_LocalPosition: " + m_LocalPosition.ToString());
+            result.AppendLine("m_LocalScale: " + m_LocalScale.ToString());
+            
+
+
+            return result.ToString();
         }
     }
 }
