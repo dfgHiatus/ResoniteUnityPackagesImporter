@@ -10,9 +10,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
     public class Transform: IUnityObject
     {
         public Dictionary<string, ulong> m_GameObject;
-        public floatQ m_LocalRotation;
-        public float3 m_LocalPosition;
-        public float3 m_LocalScale;
+        public Dictionary<string, float> m_LocalRotation;
+        public Dictionary<string, float> m_LocalPosition;
+        public Dictionary<string, float> m_LocalScale;
         public Dictionary<string, ulong> m_Father;
         public ulong id { get; set; }
         public bool instanciated {  get; set; }
@@ -39,9 +39,10 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     parentobj = (GameObject)foundobject;
                     parentobj.instanciate(existing_prefab_entries);
 
-                    parentobj.frooxEngineSlot.LocalPosition = m_LocalPosition;
-                    parentobj.frooxEngineSlot.LocalRotation = m_LocalRotation;
-                    parentobj.frooxEngineSlot.LocalScale = m_LocalScale;
+                    //heh the dictionary stuff in yamls are weird
+                    parentobj.frooxEngineSlot.LocalPosition = new float3(m_LocalPosition["x"], m_LocalPosition["y"], m_LocalPosition["z"]);
+                    parentobj.frooxEngineSlot.LocalRotation = new floatQ(m_LocalRotation["x"], m_LocalRotation["y"], m_LocalRotation["z"], m_LocalRotation["w"]);
+                    parentobj.frooxEngineSlot.LocalScale = new float3(m_LocalScale["x"], m_LocalScale["y"], m_LocalScale["z"]);
                     if (existing_prefab_entries.TryGetValue(m_FatherID, out IUnityObject foundobjectparent) && foundobjectparent.GetType() == typeof(Transform))
                     {
                         Transform parentTransform = (Transform)foundobjectparent;
