@@ -55,7 +55,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         {
                             UnityPackageImporter.Warn("The prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" did not find it's parent transform's game object! this will split your import in half heiarchy wise!");
                         }
-
                     }
                     else
                     {

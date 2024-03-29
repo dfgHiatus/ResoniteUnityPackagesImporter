@@ -22,46 +22,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
                 if (!int.TryParse(nodeEvent.Tag.Value.Replace(UnityTagPrefix, ""), out unityObjectId))
                     return false;
 
-                string unityObjectName;
-                if (UnityObjectMapping.IdToTypeName.TryGetValue(unityObjectId, out unityObjectName))
-                {
-                    try
-                    {
-
-
-
-
-                        if (currentType != null)
-                        {
-                            anchor = ulong.Parse(nodeEvent.Anchor.Value);
-                            currentType = typeof(UnityEngineObjectWrapper);
-                            return true;
-                        }
-
-
-                        // do default behaviour 
-                        // see https://github.com/aaubry/YamlDotNet/blob/master/YamlDotNet/Serialization/NodeTypeResolvers/DefaultContainersNodeTypeResolver.cs
-                        if (nodeEvent is SequenceStart)
-                        {
-                            currentType = typeof(List<object>);
-                            return true;
-                        }
-                        if (nodeEvent is MappingStart)
-                        {
-                            currentType = typeof(Dictionary<object, object>);
-                            return true;
-                        }
-                    }
-                    catch
-                    {
-                        //anchor = ulong.Parse(nodeEvent.Anchor.Value);
-                        currentType = typeof(UnityEngineObjectWrapper);
-                        return true;
-                    }
-
-
-
-                }
+                anchor = ulong.Parse(nodeEvent.Anchor.Value);
+                currentType = typeof(UnityEngineObjectWrapper);
+                return true;
 
 
             }

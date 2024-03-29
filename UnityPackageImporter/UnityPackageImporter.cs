@@ -522,6 +522,11 @@ public class UnityPackageImporter : ResoniteMod
 
         private static void LoadPrefabUnity(IEnumerable<string> files, SharedData __state, Slot parentUnder, string PrefabID)
         {
+
+
+
+
+
             string prefab = __state.AssetIDDict.GetValueSafe(PrefabID);
             var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(prefab));
             prefabslot.SetParent(parentUnder,false);
@@ -581,16 +586,21 @@ public class UnityPackageImporter : ResoniteMod
             }
 
             //some debugging for the user to show them it worked or failed.
-            Msg(debugPrefab.ToString());
-            Msg(unityprefabobjects.Count);
+            
+            Msg("Loaded "+unityprefabobjects.Count.ToString()+" Unity objects/components/meshes!");
+
+
+
             //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
             foreach (var obj in unityprefabobjects)
             {
                 obj.Value.instanciate(unityprefabobjects);
             }
+            Debug("now debugging every object after instanciation!");
+            Debug(debugPrefab.ToString());
 
-            
-            
+
+
 
             Msg("Yaml generation done");
         }
