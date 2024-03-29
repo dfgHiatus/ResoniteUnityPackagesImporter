@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -10,9 +11,13 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public bool instanciated { get; set; }
 
         public ulong id { get; set; }
-        public void instanciate(Dictionary<ulong, IUnityObject> existing_prefab_entries)
+
+        //who cares. we're just doing this to implement the interface and all we're doing is shoving in a message.
+        #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries)
+        #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         {
-            if(!instanciated)
+            if (!instanciated)
             {
                 instanciated = true;
                 UnityPackageImporter.Msg("Tried to instanciate unknown Component prefab element type! id:\"" + id.ToString() + "\". It is probably not supported!");

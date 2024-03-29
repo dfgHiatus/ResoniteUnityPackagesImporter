@@ -86,22 +86,21 @@
   <ItemGroup>
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Component.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\NullType.cs" />
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\SkinnedMeshRenderer.cs" />
     <Compile Include="FrooxEngineRepresentation\IUnityObject.cs" />
     <Compile Include="FrooxEngineRepresentation\UnityEngineObjectWrapper.cs" />
     <Compile Include="FrooxEngineRepresentation\UnityNodeTypeResolver.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Transform.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\GameObject.cs" />
     <Compile Include="Models\FileImportHelperTaskMaterial.cs" />
+    <Compile Include="Models\ImportMeshTask.cs" />
     <Compile Include="Models\MetaDataFile.cs" />
-    <Compile Include="Models\ImportTaskClass.cs" />
     <Compile Include="Models\PrefabData.cs" />
-    <Compile Include="Models\runFileImportAsync.cs" />
+    <Compile Include="Models\FileImportTask.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Models\SharedData.cs" />
     <Compile Include="TarTarSource.cs" />
     <Compile Include="UnityPackageExtractor.cs" />
     <Compile Include="UnityPackageImporter.cs" />
-    <Compile Include="Models\UnityTransform.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -19,19 +20,16 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public GameObject() {
         }
 
-        public Slot toFrooxEngine()
-        {
 
-            return frooxEngineSlot;
-        }
-
-        public void instanciate(Dictionary<ulong, IUnityObject> existing_prefab_entries)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries)
         {
             if (!instanciated)
             {
                 instanciated = true;
+                await default(ToWorld);
                 frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
                 frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
+                await default(ToBackground);
             }
             
         }

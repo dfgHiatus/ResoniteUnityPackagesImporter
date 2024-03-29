@@ -59,6 +59,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public GameObject GameObject;
         public Transform Transform;
         public NullType NullType;
+        public SkinnedMeshRenderer SkinnedMeshRenderer;
 
 
         public UnityEngineObjectWrapper()
@@ -72,7 +73,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
                 NullType,
                 GameObject,
                 Component,
-                Transform
+                Transform,
+                SkinnedMeshRenderer
             }.Find(i => i != null);
 
             if(returned != null) {

@@ -5,38 +5,34 @@ using FrooxEngine;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using static FrooxEngine.ModelImporter;
 
 namespace UnityPackageImporter.Models
 {
-    public class FileImportHelperTaskMesh
+    public class FileImportTask
     {
         public ModelImportData data;
         public string file;
         public string assetID;
-        public bool? isBiped = null;
-        public SharedData __state;
-        public Task task;
+        public bool import_finished = false;
 
         Slot targetSlot;
         public bool postprocessfinished = false;
+        public bool? isBiped;
 
-        public FileImportHelperTaskMesh(string file, Slot targetSlot, string assetID, SharedData __state)
+        public FileImportTask(Slot targetSlot, string assetID)
         {
             this.targetSlot = targetSlot;
-            this.file = file;
+            this.file = UnityPackageImporter.UniversalImporterPatch.AssetIDDict[assetID];
             this.assetID = assetID;
-            this.isBiped = null;
-            this.__state = __state;
-            this.task = targetSlot.StartGlobalTask(async () => await runImportFileMeshesAsync());
         }
 
-        private async Task runImportFileMeshesAsync()
+        public Task runImportFileMeshesAsync()
         {
-            await default(ToBackground);
-            await ImportFileMeshes();
+            return ImportFileMeshes();
         }
 
 
@@ -67,11 +63,12 @@ namespace UnityPackageImporter.Models
             UnityPackageImporter.Msg("Preprocessing scene for file " + file);
             PreprocessScene(scene);
             UnityPackageImporter.Msg("making model import data for file: " + file);
-            this.data = new ModelImportData(file, scene, this.targetSlot, __state.importTaskAssetRoot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
+            this.data = new ModelImportData(file, scene, this.targetSlot, UnityPackageImporter.UniversalImporterPatch.importTaskAssetRoot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
             UnityPackageImporter.Msg("importing node into froox engine, file: " + file);
             Task.WaitAll(recursiveNodeParserAsync(scene.RootNode, targetSlot, data));
-            UnityPackageImporter.Msg("Finishing task for file " + file);
+            UnityPackageImporter.Msg("Finished task for file " + file);
 
+            this.import_finished = true;
         }
 
 
@@ -99,8 +96,6 @@ namespace UnityPackageImporter.Models
                 //all of the bones and stuff, making the meshes easier to handle.
                 UnityPackageImporter.Msg("Importing Mesh \"" + node.Name + "\"");
                 yield return Context.WaitFor(ImportNode(node, targetSlot, data));
-
-                UnityPackageImporter.Msg("Finish Importing Mesh \"" + node.Name + "\"");
             }
             
             if(!node.HasChildren)

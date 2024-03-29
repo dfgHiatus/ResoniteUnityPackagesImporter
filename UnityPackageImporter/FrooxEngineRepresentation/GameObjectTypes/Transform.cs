@@ -1,7 +1,9 @@
 ﻿using Elements.Core;
+using FrooxEngine;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -26,7 +28,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         }
 
         //this is the magic that allows us to construct an entire game object prefab with just yaml parsing.
-        public void instanciate(Dictionary<ulong, IUnityObject> existing_prefab_entries)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries)
         {
             if (!instanciated)
             {
@@ -36,21 +38,25 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 GameObject parentobj;
                 if (existing_prefab_entries.TryGetValue(m_GameObjectID, out IUnityObject foundobject) && foundobject.GetType() == typeof(GameObject))
                 {
-                    parentobj = (GameObject)foundobject;
-                    parentobj.instanciate(existing_prefab_entries);
+                    parentobj = foundobject as GameObject;
+                    await parentobj.instanciateAsync(existing_prefab_entries);
 
                     //heh the dictionary stuff in yamls are weird
+                    await default(ToWorld);
                     parentobj.frooxEngineSlot.LocalPosition = new float3(m_LocalPosition["x"], m_LocalPosition["y"], m_LocalPosition["z"]);
                     parentobj.frooxEngineSlot.LocalRotation = new floatQ(m_LocalRotation["x"], m_LocalRotation["y"], m_LocalRotation["z"], m_LocalRotation["w"]);
                     parentobj.frooxEngineSlot.LocalScale = new float3(m_LocalScale["x"], m_LocalScale["y"], m_LocalScale["z"]);
+                    await default(ToBackground);
                     if (existing_prefab_entries.TryGetValue(m_FatherID, out IUnityObject foundobjectparent) && foundobjectparent.GetType() == typeof(Transform))
                     {
-                        Transform parentTransform = (Transform)foundobjectparent;
+                        Transform parentTransform = foundobjectparent as Transform;
 
-                        parentTransform.instanciate(existing_prefab_entries);
+                        await parentTransform.instanciateAsync(existing_prefab_entries);
                         if (existing_prefab_entries.TryGetValue(parentTransform.m_GameObjectID, out IUnityObject parentobj_parent) && parentobj_parent.GetType() == typeof(GameObject))
                         {
-                            parentobj.frooxEngineSlot.SetParent(((GameObject)parentobj_parent).frooxEngineSlot);
+                            await default(ToWorld);
+                            parentobj.frooxEngineSlot.SetParent((parentobj_parent as GameObject).frooxEngineSlot);
+                            await default(ToBackground);
                         }
                         else
                         {

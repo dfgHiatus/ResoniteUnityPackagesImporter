@@ -13,7 +13,7 @@ using static FrooxEngine.ModelImporter;
 
 namespace UnityPackageImporter.Models
 {
-    internal class FileImportHelperTaskMaterial
+    public class FileImportHelperTaskMaterial
     {
         public string file;
         public string myID;
@@ -22,23 +22,19 @@ namespace UnityPackageImporter.Models
         public Slot assetsRoot;
         public Task task;
         public Slot matslot;
-        public SharedData state;
 
-        public FileImportHelperTaskMaterial(string file, string myID, Slot myMeshRendererSlot, SharedData __state )
+        public FileImportHelperTaskMaterial(string file, string myID, Slot myMeshRendererSlot, Slot importTaskAssetRoot)
         {
             this.file = file;
             this.myID = myID;
             this.myMeshRendererSlot = myMeshRendererSlot;
-            this.assetsRoot = __state.importTaskAssetRoot;
+            this.assetsRoot = importTaskAssetRoot;
             Slot matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(file) + " - Material");
             finalMaterial = matslot.AttachComponent<FrooxEngine.PBS_Metallic>();
             this.matslot = matslot;
-            this.state = __state;
-            this.task = myMeshRendererSlot.StartGlobalTask(async () => await runImportFileMaterialsAsync());
-            
         }
 
-        private async Task runImportFileMaterialsAsync()
+        public async Task runImportFileMaterialsAsync()
         {
             await default(ToBackground);
             await ImportFileMaterial();
@@ -242,7 +238,7 @@ namespace UnityPackageImporter.Models
             try
             {
                 UnityPackageImporter.Msg("Path is being found for texture " + idtarget);
-                string f = this.state.AssetIDDict[idtarget];
+                string f = UnityPackageImporter.UniversalImporterPatch.AssetIDDict[idtarget];
                 UnityPackageImporter.Msg("Path is found for texture " + idtarget + " path is: \"" + f + "\"");
                 await default(ToWorld);
                 UnityPackageImporter.Msg("adding tex slot for texture " + idtarget + " path is: \"" + f + "\"");

@@ -13,7 +13,7 @@ namespace UnityPackageImporter
         public float GlobalScale = -1;
         public MetaDataFile() { }
 
-        public static MetaDataFile ScanFile(string path, Slot ModelRootSlot)
+        public static async Task<MetaDataFile> ScanFile(string path, Slot ModelRootSlot)
         {
             //section identification
             int sectiontype = -1;
@@ -25,7 +25,10 @@ namespace UnityPackageImporter
 
             bool inScaleBlock = false;
             MetaDataFile metaDataFile = new MetaDataFile();
+            
+            await default(ToWorld);
             metaDataFile.modelBoneHumanoidAssignments = ModelRootSlot.AttachComponent<BipedRig>();
+            await default(ToBackground);
             foreach (string line in File.ReadLines(path))
             {
                 
@@ -69,17 +72,18 @@ namespace UnityPackageImporter
 
                         if (boneName.Length != 0 && boneNameHuman.Length != 0)
                         {
+                            await default(ToWorld);
                             Rig.BoneNode bone = new Rig.BoneNode(ModelRootSlot.FindChild(boneName,false,false,-1), HumanoidNameToEnum(boneNameHuman));
-
+                            
                             //so that we add the bone without parsing it's children
                             //if we use """AssignBones(Rig.BoneNode root, bool ignoreDuplicates)""" that will cause errors.
                             if (!metaDataFile.modelBoneHumanoidAssignments.Bones.ContainsKey(bone.boneType))
                             {
                                 metaDataFile.modelBoneHumanoidAssignments.Bones.Add(bone.boneType, bone.bone);
                             }
+                            await default(ToBackground);
 
 
-                            
 
 
 
@@ -95,9 +99,11 @@ namespace UnityPackageImporter
 
                 }
             }
+            await default(ToWorld);
             //to initialize our Rig's biped forward at the end for VRIK.
             metaDataFile.modelBoneHumanoidAssignments.GuessForwardFlipped();
             metaDataFile.modelBoneHumanoidAssignments.DetectHandRigs();
+            await default(ToBackground);
             return metaDataFile;
         }
 

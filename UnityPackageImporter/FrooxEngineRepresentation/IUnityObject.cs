@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Security.Util;
+using System.Threading.Tasks;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation
 {
@@ -8,6 +9,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         ulong id { get; set; }
         bool instanciated { get; set; }
 
-        void instanciate(Dictionary<ulong, IUnityObject> existing_prefab_entries);
+        Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries);
     }
 }
