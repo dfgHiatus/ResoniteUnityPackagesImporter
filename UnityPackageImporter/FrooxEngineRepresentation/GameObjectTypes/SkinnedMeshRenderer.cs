@@ -64,7 +64,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         {
                             GameObject obj2 = bone_obj as GameObject;
                             await bone_obj.instanciateAsync(existing_prefab_entries, importer);
-                            
                         }
                     }
                     else

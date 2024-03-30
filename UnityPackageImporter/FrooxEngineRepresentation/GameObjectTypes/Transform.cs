@@ -55,7 +55,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         if (existing_prefab_entries.TryGetValue(parentTransform.m_GameObjectID, out IUnityObject parentobj_parent) && parentobj_parent.GetType() == typeof(GameObject))
                         {
                             await default(ToWorld);
-                            parentobj.frooxEngineSlot.SetParent((parentobj_parent as GameObject).frooxEngineSlot);
+                            parentobj.frooxEngineSlot.SetParent((parentobj_parent as GameObject).frooxEngineSlot, false);
                             await default(ToBackground);
                         }
                         else
