@@ -97,26 +97,30 @@ public class ImportMeshTask
         FoundMesh.Materials.Clear();
         await default(ToBackground);
         UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
-        for (int index = 0; index < requestingMeshRenderer.materials.Count(); index++)
+        for (int index = 0; index < requestingMeshRenderer.m_Materials.Count(); index++)
         {
             try
             {
+                await default(ToWorld);
                 requestingMeshRenderer.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask);
                 FoundMesh.Materials[index] = await materialtask.runImportFileMaterialsAsync();
+                await default(ToBackground);
             }
             catch
             {
 
                 try
                 {
+                    await default(ToWorld);
                     requestingMeshRenderer.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask2);
                     FoundMesh.Materials.Add().Target = await materialtask2.runImportFileMaterialsAsync();
+                    await default(ToBackground);
                 }
                 catch (Exception e)
                 {
                     UnityPackageImporter.Msg("Could not attach material \"" + index.ToString() + "\" on mesh \""+ FoundMesh.Slot.Name + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
                     UnityPackageImporter.Msg("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
-                    UnityPackageImporter.Msg(e.StackTrace);
+                    UnityPackageImporter.Msg(e.Message);
                     FoundMesh.Materials.Add();
                 }
             }

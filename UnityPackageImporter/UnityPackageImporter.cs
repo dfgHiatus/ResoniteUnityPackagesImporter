@@ -174,13 +174,12 @@ public class UnityPackageImporter : ResoniteMod
             
 
             List<string> noprefabs = scanthesefiles.ToList();
-            noprefabs.RemoveAll(i => scanthesefiles.Union(importer.ListOfPrefabs.Values).Union(importer.ListOfMetas.Values).Contains(i));
-            scanthesefiles = noprefabs;
+            noprefabs.RemoveAll(i => scanthesefiles.Union(importer.ListOfPrefabs.Values.ToList()).Union(importer.ListOfMetas.Values.ToList()).Contains(i));
             //once we have removed the prefabs, now we let the original stuff go through so we have the files normally
             //idk if we really need this if the stuff above is going to eventually just import prefabs and textures already set up... - @989onan
             BatchFolderImporter.BatchImport(
                 slot,
-                scanthesefiles,
+                noprefabs,
                 Config.GetValue(importAsRawFiles));
 
             IEnumerable<string> allfiles = files.ToArray();

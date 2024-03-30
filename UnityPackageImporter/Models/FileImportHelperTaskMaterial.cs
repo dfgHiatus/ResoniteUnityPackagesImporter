@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Security.Cryptography;
 using System.Security.Policy;
 using System.Threading.Tasks;
 using UnityPackageImporter.FrooxEngineRepresentation;
@@ -34,11 +33,14 @@ namespace UnityPackageImporter.Models
             {
                 throw new FileNotFoundException("Could not find the material with the id \"" + myID + "\" for a prefab!");
             }
-            
+
+            UnityPackageImporter.Msg("Importing material with ID: \""+myID+"\"");
+            UnityPackageImporter.Msg("and a file of: \"" + this.file + "\"");
+            UnityPackageImporter.Msg("and a slot assets root of " + importer.importTaskAssetRoot.ToString());
+            assetsRoot = importer.importTaskAssetRoot;
+            matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(file) + " - Material");
+            UnityPackageImporter.Msg("and a mat slot of " + matslot.ToString());
             this.myID = myID;
-            this.assetsRoot = importer.importTaskAssetRoot;
-            Slot matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(file) + " - Material");
-            this.matslot = matslot;
         }
 
         public async Task<FrooxEngine.PBS_Metallic> runImportFileMaterialsAsync()

@@ -17,7 +17,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public bool instanciated { get; set; }
         public Dictionary<string, ulong> m_GameObject;
         public int m_Enabled = 1;
-        public Dictionary<int, FileImportHelperTaskMaterial> materials;
+        public Dictionary<int, FileImportHelperTaskMaterial> materials = new Dictionary<int, FileImportHelperTaskMaterial>();
         public string Name = string.Empty;
         public List<Dictionary<string, string>> m_Materials;
         public Dictionary<string, string> m_Mesh;

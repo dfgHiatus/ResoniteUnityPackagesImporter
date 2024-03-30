@@ -62,7 +62,7 @@ namespace UnityPackageImporter
 
 
 
-        private async Task LoadPrefabUnity(IEnumerable<string> files, Slot parentUnder, KeyValuePair<string, string> PrefabID)
+        private async Task LoadPrefabUnity(IEnumerable<string> files, Slot slot, KeyValuePair<string, string> PrefabID)
         {
 
 
@@ -70,7 +70,7 @@ namespace UnityPackageImporter
 
             await default(ToWorld);
             var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(PrefabID.Value));
-            prefabslot.SetParent(parentUnder, false);
+            prefabslot.SetParent(slot, false);
             await default(ToBackground);
             //begin the parsing of our prefabs.
             //begin the parsing of our prefabs.
@@ -165,7 +165,11 @@ namespace UnityPackageImporter
                 {
                     FrooxEngineRepresentation.GameObjectTypes.GameObject gameobj = obj as FrooxEngineRepresentation.GameObjectTypes.GameObject;
                     await default(ToWorld);
-                    gameobj.frooxEngineSlot.Destroy(prefabslot, true);
+                    foreach (Slot prefabImmediateChild in gameobj.frooxEngineSlot.Children.ToArray())
+                    {
+                        prefabImmediateChild.SetParent(prefabslot, false);
+                    }
+                    gameobj.frooxEngineSlot.Destroy();
                     await default(ToBackground);
                 }
                 unityprefabimports.Remove(obj.id);
@@ -310,12 +314,12 @@ namespace UnityPackageImporter
                     //put our stuff under a slot called rootnode so froox engine can set this model up as an avatar
                     await default(ToWorld);
                     Slot rootnode = taskSlot.AddSlot("RootNode");
-                    rootnode.LocalScale *= metadata.GlobalScale;
+                    
                     foreach (Slot prefabImmediateChild in taskSlot.Children.ToArray())
                     {
                         prefabImmediateChild.SetParent(rootnode, false);
                     }
-
+                    rootnode.LocalScale *= metadata.GlobalScale;
 
 
                     UnityPackageImporter.Msg("Scaling up/down armature to file's global scale.");
@@ -327,7 +331,7 @@ namespace UnityPackageImporter
                         {
 
                             UnityPackageImporter.Msg("scaling bone " + slot.Name);
-                            slot.LocalPosition *= metadata.GlobalScale;
+                            slot.LocalPosition /= metadata.GlobalScale;
                         }
 
 
