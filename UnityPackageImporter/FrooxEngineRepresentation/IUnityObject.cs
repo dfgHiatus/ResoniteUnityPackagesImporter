@@ -9,6 +9,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         ulong id { get; set; }
         bool instanciated { get; set; }
 
-        Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries);
+        Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer);
     }
 }

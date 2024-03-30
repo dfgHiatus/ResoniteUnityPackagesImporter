@@ -21,7 +21,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         }
 
 
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer)
         {
             if (!instanciated)
             {

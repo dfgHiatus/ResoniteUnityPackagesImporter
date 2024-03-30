@@ -11,9 +11,12 @@ namespace UnityPackageImporter
     {
         public BipedRig modelBoneHumanoidAssignments;
         public float GlobalScale = -1;
-        public MetaDataFile() { }
+        public MetaDataFile() {
+            
+            
+        }
 
-        public static async Task<MetaDataFile> ScanFile(string path, Slot ModelRootSlot)
+        public async Task ScanFile(string path, Slot ModelRootSlot)
         {
             //section identification
             int sectiontype = -1;
@@ -24,11 +27,12 @@ namespace UnityPackageImporter
 
 
             bool inScaleBlock = false;
-            MetaDataFile metaDataFile = new MetaDataFile();
             
             await default(ToWorld);
-            metaDataFile.modelBoneHumanoidAssignments = ModelRootSlot.AttachComponent<BipedRig>();
+            modelBoneHumanoidAssignments = ModelRootSlot.AttachComponent<BipedRig>();
             await default(ToBackground);
+
+            UnityPackageImporter.Msg("Humanoid bone description being instanciated is: "+(modelBoneHumanoidAssignments == null));
             foreach (string line in File.ReadLines(path))
             {
                 
@@ -49,7 +53,7 @@ namespace UnityPackageImporter
                     {
                         string numberStr = line.Split(':')[2].Split(',')[0].Trim();
                         UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing and diving 1 by it to get our scale");
-                        metaDataFile.GlobalScale = 1/float.Parse(numberStr);
+                        GlobalScale = 1/float.Parse(numberStr);
                         inScaleBlock = false;
                     }
                 }
@@ -73,13 +77,14 @@ namespace UnityPackageImporter
                         if (boneName.Length != 0 && boneNameHuman.Length != 0)
                         {
                             await default(ToWorld);
+                            UnityPackageImporter.Msg("finding bone: "+ boneName);
                             Rig.BoneNode bone = new Rig.BoneNode(ModelRootSlot.FindChild(boneName,false,false,-1), HumanoidNameToEnum(boneNameHuman));
                             
                             //so that we add the bone without parsing it's children
                             //if we use """AssignBones(Rig.BoneNode root, bool ignoreDuplicates)""" that will cause errors.
-                            if (!metaDataFile.modelBoneHumanoidAssignments.Bones.ContainsKey(bone.boneType))
+                            if (!modelBoneHumanoidAssignments.Bones.ContainsKey(bone.boneType))
                             {
-                                metaDataFile.modelBoneHumanoidAssignments.Bones.Add(bone.boneType, bone.bone);
+                                modelBoneHumanoidAssignments.Bones.Add(bone.boneType, bone.bone);
                             }
                             await default(ToBackground);
 
@@ -100,11 +105,11 @@ namespace UnityPackageImporter
                 }
             }
             await default(ToWorld);
-            //to initialize our Rig's biped forward at the end for VRIK.
-            metaDataFile.modelBoneHumanoidAssignments.GuessForwardFlipped();
-            metaDataFile.modelBoneHumanoidAssignments.DetectHandRigs();
+            UnityPackageImporter.Msg("detecting forward flipped of model biped.");
+            //this is here to initialize our Rig's biped forward at the end of the import for VRIK later on.
+            modelBoneHumanoidAssignments.GuessForwardFlipped();
+            modelBoneHumanoidAssignments.DetectHandRigs();
             await default(ToBackground);
-            return metaDataFile;
         }
 
         //Since Unity names and Froox Engine names are the same, just parse them as enums and return.

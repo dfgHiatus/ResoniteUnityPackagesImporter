@@ -14,7 +14,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
         //who cares. we're just doing this to implement the interface and all we're doing is shoving in a message.
         #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer)
         #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
         {
             if (!instanciated)

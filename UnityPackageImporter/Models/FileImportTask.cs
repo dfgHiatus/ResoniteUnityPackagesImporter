@@ -9,6 +9,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using static FrooxEngine.ModelImporter;
+using static System.Net.WebRequestMethods;
 
 namespace UnityPackageImporter.Models
 {
@@ -16,21 +17,42 @@ namespace UnityPackageImporter.Models
     {
         public ModelImportData data;
         public string file;
+        private PrefabImporter importer;
         public string assetID;
         public bool import_finished = false;
 
         Slot targetSlot;
         public bool postprocessfinished = false;
         public bool? isBiped;
+        public bool running;
 
-        public FileImportTask(Slot targetSlot, string assetID)
+        public FileImportTask(Slot targetSlot, string assetID, PrefabImporter importer)
         {
             this.targetSlot = targetSlot;
-            this.file = UnityPackageImporter.UniversalImporterPatch.AssetIDDict[assetID];
+            try
+            {
+                this.file = importer.AssetIDDict[assetID];
+                this.importer = importer;
+                if (this.file == null)
+                {
+                    throw new FileNotFoundException(this.file);
+                }
+            }
+            catch
+            {
+                UnityPackageImporter.Warn("Could not find asset with id: " + assetID);
+                UnityPackageImporter.Warn("dumping dictionary for debug!");
+                foreach (var pair in importer.AssetIDDict)
+                {
+                    UnityPackageImporter.Msg(pair.Key+":"+pair.value);
+                }
+                
+            }
+            
             this.assetID = assetID;
         }
 
-        public Task runImportFileMeshesAsync()
+        public Task runImportFilesAsync()
         {
             return ImportFileMeshes();
         }
@@ -38,6 +60,7 @@ namespace UnityPackageImporter.Models
 
         private async Task ImportFileMeshes()
         {
+            this.running = true;
             UnityPackageImporter.Msg("Start code block for file import for file " + file);
             await default(ToBackground);
             AssimpContext assimpContext = new AssimpContext();
@@ -63,12 +86,12 @@ namespace UnityPackageImporter.Models
             UnityPackageImporter.Msg("Preprocessing scene for file " + file);
             PreprocessScene(scene);
             UnityPackageImporter.Msg("making model import data for file: " + file);
-            this.data = new ModelImportData(file, scene, this.targetSlot, UnityPackageImporter.UniversalImporterPatch.importTaskAssetRoot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
+            this.data = new ModelImportData(file, scene, this.targetSlot, importer.importTaskAssetRoot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
             UnityPackageImporter.Msg("importing node into froox engine, file: " + file);
             Task.WaitAll(recursiveNodeParserAsync(scene.RootNode, targetSlot, data));
             UnityPackageImporter.Msg("Finished task for file " + file);
 
-            this.import_finished = true;
+            this.running = false;
         }
 
 

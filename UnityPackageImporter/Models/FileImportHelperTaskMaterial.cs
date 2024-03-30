@@ -3,12 +3,14 @@ using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.Store;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Security.Policy;
 using System.Threading.Tasks;
+using UnityPackageImporter.FrooxEngineRepresentation;
 using static FrooxEngine.ModelImporter;
 
 namespace UnityPackageImporter.Models
@@ -17,32 +19,40 @@ namespace UnityPackageImporter.Models
     {
         public string file;
         public string myID;
-        public Slot myMeshRendererSlot;
-        public FrooxEngine.PBS_Metallic finalMaterial;
         public Slot assetsRoot;
-        public Task task;
         public Slot matslot;
+        public PrefabImporter importer;
 
-        public FileImportHelperTaskMaterial(string file, string myID, Slot myMeshRendererSlot, Slot importTaskAssetRoot)
+        public FileImportHelperTaskMaterial(string myID, PrefabImporter importer)
         {
-            this.file = file;
+            this.importer = importer;
+            try
+            {
+                this.file = importer.AssetIDDict[myID];
+            }
+            catch
+            {
+                throw new FileNotFoundException("Could not find the material with the id \"" + myID + "\" for a prefab!");
+            }
+            
             this.myID = myID;
-            this.myMeshRendererSlot = myMeshRendererSlot;
-            this.assetsRoot = importTaskAssetRoot;
+            this.assetsRoot = importer.importTaskAssetRoot;
             Slot matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(file) + " - Material");
-            finalMaterial = matslot.AttachComponent<FrooxEngine.PBS_Metallic>();
             this.matslot = matslot;
         }
 
-        public async Task runImportFileMaterialsAsync()
+        public async Task<FrooxEngine.PBS_Metallic> runImportFileMaterialsAsync()
         {
             await default(ToBackground);
-            await ImportFileMaterial();
+            return await ImportFileMaterial();
         }
 
 
-        private async Task ImportFileMaterial()
+        private async Task<FrooxEngine.PBS_Metallic> ImportFileMaterial()
         {
+            await default(ToWorld);
+            FrooxEngine.PBS_Metallic finalMaterial = matslot.AttachComponent<FrooxEngine.PBS_Metallic>();
+            await default(ToBackground);
             bool inTextureBlock = false;
             await default(ToBackground);
             string texturename = string.Empty;
@@ -226,6 +236,7 @@ namespace UnityPackageImporter.Models
 
 
             await default(ToBackground);
+            return finalMaterial;
 
         }
 
@@ -238,7 +249,7 @@ namespace UnityPackageImporter.Models
             try
             {
                 UnityPackageImporter.Msg("Path is being found for texture " + idtarget);
-                string f = UnityPackageImporter.UniversalImporterPatch.AssetIDDict[idtarget];
+                string f = importer.AssetIDDict[idtarget];
                 UnityPackageImporter.Msg("Path is found for texture " + idtarget + " path is: \"" + f + "\"");
                 await default(ToWorld);
                 UnityPackageImporter.Msg("adding tex slot for texture " + idtarget + " path is: \"" + f + "\"");

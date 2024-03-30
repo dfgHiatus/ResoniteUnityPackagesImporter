@@ -28,7 +28,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         }
 
         //this is the magic that allows us to construct an entire game object prefab with just yaml parsing.
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer)
         {
             if (!instanciated)
             {
@@ -39,7 +39,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 if (existing_prefab_entries.TryGetValue(m_GameObjectID, out IUnityObject foundobject) && foundobject.GetType() == typeof(GameObject))
                 {
                     parentobj = foundobject as GameObject;
-                    await parentobj.instanciateAsync(existing_prefab_entries);
+                    await parentobj.instanciateAsync(existing_prefab_entries, importer);
 
                     //heh the dictionary stuff in yamls are weird
                     await default(ToWorld);
@@ -51,7 +51,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     {
                         Transform parentTransform = foundobjectparent as Transform;
 
-                        await parentTransform.instanciateAsync(existing_prefab_entries);
+                        await parentTransform.instanciateAsync(existing_prefab_entries, importer);
                         if (existing_prefab_entries.TryGetValue(parentTransform.m_GameObjectID, out IUnityObject parentobj_parent) && parentobj_parent.GetType() == typeof(GameObject))
                         {
                             await default(ToWorld);

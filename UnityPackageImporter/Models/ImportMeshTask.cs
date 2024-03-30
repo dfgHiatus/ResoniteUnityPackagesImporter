@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using UnityPackageImporter.FrooxEngineRepresentation;
+using UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
 using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter;
@@ -13,101 +15,117 @@ public class ImportMeshTask
     public FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer requestingMeshRenderer; //this is our key value, it tells us which mesh this model was being imported for
     public FileImportTask fileImportTask; //this can be the same as another tasks value for this very often (Aka our task may be the same as another import task). This tells us what file the mesh is in, and the task we have to wait for before it exists.
     public Slot PrefabRoot; //what prefab of the many we may be importing that this task belongs to.
-    public ImportMeshTask(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer requestingMeshRenderer, FileImportTask fileImportTask, Slot PrefabRoot)
+    public PrefabImporter importer;
+    public ImportMeshTask(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer requestingMeshRenderer, FileImportTask fileImportTask, Slot PrefabRoot, PrefabImporter importer)
     {
         this.fileImportTask = fileImportTask;
         this.requestingMeshRenderer = requestingMeshRenderer;
         this.PrefabRoot = PrefabRoot;
+        this.importer = importer;
     }
 
-
-
-    public async Task ImportMeshTaskASync()
+    public async Task ImportMeshTaskRunner()
     {
-        /*var prefab = task.PrefabRoot;
-        foreach (SkinnedMeshRenderer skinnedMeshrender in fileImportTask.data.skinnedRenderers)
+        await default(ToBackground);
+
+        UnityPackageImporter.Msg("finding skin mesh renderer.");
+        FrooxEngine.SkinnedMeshRenderer FoundMesh = this.fileImportTask.data.skinnedRenderers.Find(i => i.Slot.Name == requestingMeshRenderer.Name);
+        requestingMeshRenderer.createdMeshRenderer = FoundMesh;
+        if (FoundMesh == null)
         {
-            if (!(skinnedMeshrender.Bones.Count() > 0))
+            UnityPackageImporter.Warn("Could not find skinned mesh renderer!! dumping data for debug!");
+            UnityPackageImporter.Msg("mesh renderer we're trying to find: \"" + requestingMeshRenderer.Name + "\"");
+            UnityPackageImporter.Msg("Mesh slot names:");
+            foreach (FrooxEngine.SkinnedMeshRenderer mesh in this.fileImportTask.data.skinnedRenderers)
             {
-                skinnedMeshrender.Bones.Clear();
-                Msg("setting up mesh: \"" + skinnedMeshrender.Slot.Name + "\"");
-                for (int index = 0; index < task.BoneArrayIDs.Count(); index++)
-                {
-                    //this takes the id of the current bone slot, which is the transform component, gets it's parent which is the game object id, then turns that into a slot using entities.
-                    Slot otherBone = (Slot)prefab.Entities[
-                        prefab.EntityChildID_To_EntityParentID[task.BoneArrayIDs[index]]
-                    ];
-                    rig.Bones.AddUnique(otherBone);
-                    skinnedMeshrender.Bones.Add().Target = otherBone;
-
-                }
-                
-                Msg("getting material objects for: \"" + skinnedMeshrender.Slot.Name + "\"");
-                skinnedMeshrender.Materials.Clear();
-                for (int index = 0; index < task.materialArrayIDs.Count(); index++)
-                {
-                    try
-                    {
-                        skinnedMeshrender.Materials[index] = TasksMaterials.First(i => i.myID == task.materialArrayIDs[index]).finalMaterial;
-                    }
-                    catch
-                    {
-
-                        try
-                        {
-                            skinnedMeshrender.Materials.Add().Target = TasksMaterials.First(i => i.myID == task.materialArrayIDs[index]).finalMaterial;
-                        }
-                        catch (Exception e)
-                        {
-                            Msg("Could not attach material \"" + task.materialArrayIDs[index] + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
-                            Msg("stacktrace for material \"" + task.materialArrayIDs[index] + "\"");
-                            Msg(e.StackTrace);
-                        }
-                    }
-
-                }
-
-
-                
-
-
+                UnityPackageImporter.Msg("\""+mesh.Slot.Name+"\"");
             }
-
+            return;
         }
 
-        Msg("Finding our mesh for this task");
-        SkinnedMeshRenderer ournewmesh;*/
-        await default(ToBackground);
-        FrooxEngine.SkinnedMeshRenderer renderer = this.fileImportTask.data.skinnedRenderers.Find(i => i.Slot.Name == requestingMeshRenderer.createdMeshRenderer.Slot.Name);
-        UnityPackageImporter.Msg("Waiting for mesh assets for: \"" + renderer.Slot.Name + "\"");
-        while (renderer.Mesh.Value == RefID.Null)
+
+        UnityPackageImporter.Msg("Waiting for mesh assets for: \"" + FoundMesh.Slot.Name + "\"");
+        await default(ToWorld);
+        while (!FoundMesh.Mesh.IsAssetAvailable)
         {
+            await default(NextUpdate);
             await Task.Delay(1000);
         }
+        UnityPackageImporter.Msg("finished waiting for mesh assets for: \"" + FoundMesh.Slot.Name + "\"");
+
+        await default(ToWorld);
+        requestingMeshRenderer.parentobj.frooxEngineSlot.Destroy(); //get rid of the old slot, so we have the one froox engine imported with assimp.
+        requestingMeshRenderer.parentobj.frooxEngineSlot = requestingMeshRenderer.createdMeshRenderer.Slot; //change it's slot to the new one so we don't cause strange errors with other code.
+        FoundMesh.Enabled = requestingMeshRenderer.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported.
+        FoundMesh.ExplicitLocalBounds.Value = 
+            Elements.Core.BoundingBox.CenterSize(
+                new Elements.Core.float3(
+                    requestingMeshRenderer.m_AABB.m_Center["x"],
+                    requestingMeshRenderer.m_AABB.m_Center["y"],
+                    requestingMeshRenderer.m_AABB.m_Center["z"]), 
+                new Elements.Core.float3(requestingMeshRenderer.m_AABB.m_Extent["x"], 
+                requestingMeshRenderer.m_AABB.m_Extent["y"], 
+                requestingMeshRenderer.m_AABB.m_Extent["z"]
+                ));
+        FoundMesh.BoundsComputeMethod.Value = SkinnedBounds.Explicit; //use Unity's skinned bounds methods. 
+        await default(ToBackground);
         
-
-        try
-        {
-            //this allows us to pull the skinned mesh renderers we imported and then delete their slots later.
-            Slot oldSlot = renderer.Slot;
-
-            if (!UnityPackageImporter.UniversalImporterPatch.oldSlots.Contains(oldSlot))
+        Dictionary<string, Slot> bonemappings = new Dictionary<string, Slot>();
+        UnityPackageImporter.Msg("gathering bones for model.");
+        foreach (Dictionary<string, ulong> bonemap in requestingMeshRenderer.m_Bones)
+        { 
+            if (this.importer.unityprefabimports.TryGetValue(bonemap["fileID"], out IUnityObject unityObject))
             {
-                UnityPackageImporter.UniversalImporterPatch.oldSlots.Add(oldSlot);
-
+                FrooxEngineRepresentation.GameObjectTypes.Transform obj = unityObject as FrooxEngineRepresentation.GameObjectTypes.Transform;
+                this.importer.unityprefabimports.TryGetValue(obj.m_GameObjectID, out IUnityObject unityObjectGame);
+                GameObject gamneobj = unityObjectGame as GameObject;
+                bonemappings.Add(gamneobj.m_Name, gamneobj.frooxEngineSlot);
+            }
+            else
+            {
+                UnityPackageImporter.Msg("Couldn't find bone for skinned mesh renderer on your prefab! This is bad!");
             }
 
-            await default(ToWorld);
-            requestingMeshRenderer.createdMeshRenderer.Mesh.Target = renderer.Mesh.Target;
-            requestingMeshRenderer.createdMeshRenderer.SetupBlendShapes();
-            await default(ToBackground);
+
         }
-        catch (Exception e)
+        await default(ToWorld);
+        UnityPackageImporter.Msg("setting up bones for model.");
+        FoundMesh.SetupBones(bonemappings);
+        await default(ToBackground);
+        await default(ToWorld);
+        UnityPackageImporter.Msg("clearing bad material objects for: \"" + FoundMesh.Slot.Name + "\"");
+        FoundMesh.Materials.Clear();
+        await default(ToBackground);
+        UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
+        for (int index = 0; index < requestingMeshRenderer.materials.Count(); index++)
         {
-            UnityPackageImporter.Msg("Imported mesh failed to find it's prefab counterpart!");
-            UnityPackageImporter.Msg("Import task for file \"" + fileImportTask.file + "\" tried to put its skinnedMeshRenderer Component called \"" + renderer.Slot.Name + "\" under a slot imported by the prefab importer, but it errored! Here's the stacktrace:");
-            UnityPackageImporter.Msg(e.StackTrace);
+            try
+            {
+                requestingMeshRenderer.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask);
+                FoundMesh.Materials[index] = await materialtask.runImportFileMaterialsAsync();
+            }
+            catch
+            {
+
+                try
+                {
+                    requestingMeshRenderer.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask2);
+                    FoundMesh.Materials.Add().Target = await materialtask2.runImportFileMaterialsAsync();
+                }
+                catch (Exception e)
+                {
+                    UnityPackageImporter.Msg("Could not attach material \"" + index.ToString() + "\" on mesh \""+ FoundMesh.Slot.Name + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
+                    UnityPackageImporter.Msg("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
+                    UnityPackageImporter.Msg(e.StackTrace);
+                    FoundMesh.Materials.Add();
+                }
+            }
+
         }
+
+        UnityPackageImporter.Msg("Setting up blend shapes");
+        await default(ToWorld);
+        FoundMesh.SetupBlendShapes();
         await default(ToBackground);
 
     }
