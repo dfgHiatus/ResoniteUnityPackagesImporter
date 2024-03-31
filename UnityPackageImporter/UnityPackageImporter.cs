@@ -1,36 +1,24 @@
 ﻿using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
-using FrooxEngine.FinalIK;
-using FrooxEngine.ProtoFlux;
 using HarmonyLib;
 using ResoniteModLoader;
+using SkyFrost.Base;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime;
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityPackageImporter.Extractor;
-using UnityPackageImporter.FrooxEngineRepresentation;
-using UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
-using UnityPackageImporter.Models;
-using YamlDotNet.Core;
-using YamlDotNet.Core.Events;
-using YamlDotNet.RepresentationModel;
-using YamlDotNet.Serialization;
 
 namespace UnityPackageImporter;
 
 public class UnityPackageImporter : ResoniteMod
 {
     public override string Name => "UnityPackageImporter";
-    public override string Author => "dfgHiatus, eia485, delta, Frozenreflex, benaclejames";
-    public override string Version => "2.0.0";
+    public override string Author => "dfgHiatus, eia485, delta, Frozenreflex, benaclejames, 989onan";
+    public override string Version => "2.1.0";
     public override string Link => "https://github.com/dfgHiatus/ResoniteUnityPackagesImporter";
 
     internal const string UNITY_PACKAGE_EXTENSION = ".unitypackage";
@@ -45,35 +33,38 @@ public class UnityPackageImporter : ResoniteMod
         "DecompressedUnityPrefabs");
 
     [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<bool> dumpPackageContents =
+     new ModConfigurationKey<bool>("dumpPackageContents", "Import files inside of unity packages: import all files inside unity packages instead of just prefabs when \"importPrefab\" is enabled.", () => false);
+    [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importAsRawFiles =
-     new ModConfigurationKey<bool>("importAsRawFiles", "Import files as raw binaries", () => false);
+     new ModConfigurationKey<bool>("importAsRawFiles", "Import Binaries: Import files as raw binaries", () => false);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> ImportPrefab =
-         new ModConfigurationKey<bool>("importPrefab", "Import Prefabs", () => true);
+         new ModConfigurationKey<bool>("importPrefab", "Import Prefabs: Import prefabs inside unity packages (DISABLES ALL UNLESS \"Import files inside of unity packages\" IS ENABLED)", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importText =
-         new ModConfigurationKey<bool>("importText", "Import Text", () => true);
+         new ModConfigurationKey<bool>("importText", "Import Text: Import text inside packages", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importTexture =
-         new ModConfigurationKey<bool>("importTexture", "Import Textures", () => true);
+         new ModConfigurationKey<bool>("importTexture", "Import Textures: Import textures inside packages", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importDocument =
-         new ModConfigurationKey<bool>("importDocument", "Import Documents", () => true);
+         new ModConfigurationKey<bool>("importDocument", "Import Documents: Import documents inside packages", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importMesh =
-         new ModConfigurationKey<bool>("importMesh", "Import Meshes", () => true);
+         new ModConfigurationKey<bool>("importMesh", "Import Meshes: Import meshes inside packages", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importPointCloud =
-         new ModConfigurationKey<bool>("importPointCloud", "Import Point Clouds", () => true);
+         new ModConfigurationKey<bool>("importPointCloud", "Import Point Clouds: Import point clouds inside packages", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importAudio =
-         new ModConfigurationKey<bool>("importAudio", "Import Audio", () => true);
+         new ModConfigurationKey<bool>("importAudio", "Import Audio: Import audio files inside packages", () => true);
     [AutoRegisterConfigKey]
     internal static ModConfigurationKey<bool> importFont =
-         new ModConfigurationKey<bool>("importFont", "Import Fonts", () => true);
+         new ModConfigurationKey<bool>("importFont", "Import Fonts: Import fonts inside packages", () => true);
     [AutoRegisterConfigKey]
     internal static ModConfigurationKey<bool> importVideo =
-         new ModConfigurationKey<bool>("importVideo", "Import Videos", () => true);
+         new ModConfigurationKey<bool>("importVideo", "Import Videos: Import videos inside packages", () => true);
 
     public override void OnEngineInit()
     {
@@ -90,12 +81,21 @@ public class UnityPackageImporter : ResoniteMod
         foreach (var element in fileToHash)
         {
             var dir = Path.Combine(cachePath, element.Value);
-            if (!Directory.Exists(dir))
+            if (!Directory.Exists(dir)) //find if we have extracted a package like this before
+            {
                 unityPackagesToDecompress.Add(element.Key);
-            else
-                dirsToImport.Add(dir);
+            }
+            else//else we have imported a unity package exactly like this. skip importing the unity package and use our cache.
+            {//if there were two different files with the same MD5, then you should be collecting cash money awards.
+                var extractedPath = Path.Combine(cachePath, fileToHash[element.Key], "Assets");
+                var allfiles = Directory.GetFiles(extractedPath, "*", SearchOption.AllDirectories).ToArray();
+                foreach (string i in allfiles)
+                {
+                    dirsToImport.Add(i); //add the list of already extracted files to our cache.
+                }
+            }
         }
-        foreach (var package in unityPackagesToDecompress)
+        foreach (var package in unityPackagesToDecompress) //extract the package directory if it doesn't exist
         {
             var modelName = Path.GetFileNameWithoutExtension(package);
             if (Utils.ContainsUnicodeCharacter(modelName))
@@ -104,8 +104,12 @@ public class UnityPackageImporter : ResoniteMod
                 continue;
             }
             var extractedPath = Path.Combine(cachePath, fileToHash[package]);
-            UnityPackageExtractor.Unpack(package, extractedPath);
-            dirsToImport.Add(extractedPath);
+            List<string> paths = UnityPackageExtractor.Unpack(package, extractedPath); //unpack each unity directory individually (it's a huge list of folders each one has only one asset)
+            foreach (string i in paths)
+            {
+                dirsToImport.Add(i); //add all the paths it found to the list of files
+            }
+            
         }
         return dirsToImport.ToArray();
     }
@@ -125,12 +129,16 @@ public class UnityPackageImporter : ResoniteMod
         public static bool Prefix(ref IEnumerable<string> files)
         {
 
-            //instanciate our variables
-            //TODO: If the user is able to reimport something while the tasks in the mulitthreading is running, these variables will get reset and cause a multithreading crash.
-            //TODO: we need to stop this!
-            //TODO: FIX ME FOR THE LOVE OF GOD!!!
             List<string> hasUnityPackage = new List<string>();
             List<string> notUnityPackage = new List<string>();
+
+
+
+
+            Msg("Start import of unity packages.");
+            var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package Import");
+            slot.PositionInFrontOfUser(null, null, 0.7f, null, false, false, true);
+            slot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
 
 
             foreach (var file in files)
@@ -140,66 +148,71 @@ public class UnityPackageImporter : ResoniteMod
                 else
                     notUnityPackage.Add(file);
             }
-        
-            List<string> allDirectoriesToBatchImport = new List<string>();
-            var filespackage = DecomposeUnityPackages(hasUnityPackage.ToArray());
-            foreach (var dir in filespackage)
-                allDirectoriesToBatchImport.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories)
-                    .Where(ShouldImportFile).ToArray());
-
-            var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package Import");
-            slot.PositionInFrontOfUser();
+            if(hasUnityPackage.Count > 0)
+            {
+                slot.StartGlobalTask(async () => await scanfiles(hasUnityPackage, slot));
+                
+            }
 
 
-
-            List<string> scanthesefiles = new List<string>();
-
-
-
-
-
-            scanthesefiles.AddRange(notUnityPackage);
-            //add everything in the unity package for our file scan
-            foreach (var dir in DecomposeUnityPackages(hasUnityPackage.ToArray()))
-                scanthesefiles.AddRange(Directory.GetFiles(dir, "*", SearchOption.AllDirectories).ToArray());
-
-            /*DebugMSG*/Msg("CALLING FindPrefabsAndMetas");
-            scanthesefiles = FindPrefabsAndMetas(slot,
-                scanthesefiles,
-                Config.GetValue(importAsRawFiles), out PrefabImporter importer).ToList();
-
-
-
-            
-            
-
-            List<string> noprefabs = scanthesefiles.ToList();
-            noprefabs.RemoveAll(i => scanthesefiles.Union(importer.ListOfPrefabs.Values.ToList()).Union(importer.ListOfMetas.Values.ToList()).Contains(i));
             //once we have removed the prefabs, now we let the original stuff go through so we have the files normally
             //idk if we really need this if the stuff above is going to eventually just import prefabs and textures already set up... - @989onan
-            BatchFolderImporter.BatchImport(
-                slot,
-                noprefabs,
-                Config.GetValue(importAsRawFiles));
 
-            IEnumerable<string> allfiles = files.ToArray();
-            slot.StartGlobalTask(async () => await importer.startImports(allfiles, slot, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets")));
 
-            if (notUnityPackage.Count <= 0) return false;
-            files = notUnityPackage.ToArray();
-            return true;
+
+            if (hasUnityPackage.Count <= 0) return true;
+            BatchFolderImporter.BatchImport(slot, notUnityPackage, Config.GetValue(importAsRawFiles));
+            
+
+            return false;
         }
 
-        private static IEnumerable<string> FindPrefabsAndMetas(Slot root, IEnumerable<string> files, bool forceUnknown, out PrefabImporter importer)
+        private static async Task scanfiles(List<string> hasUnityPackage, Slot slot)
         {
-            bool shouldBeRaw = forceUnknown;
+
+
+
+            await default(ToBackground);
+            List<string> scanthesefiles = new List<string>(DecomposeUnityPackages(hasUnityPackage.ToArray()));
+            
+            
+
+            Msg("CALLING FindPrefabsAndMetas");
+            List<string> notprefabsandmetas = FindPrefabsAndMetas(scanthesefiles, out PrefabImporter importer).ToList();
+            if (Config.GetValue(dumpPackageContents))
+            {
+                if (Config.GetValue(ImportPrefab))
+                {
+                    //get all files that don't have metas
+                    BatchFolderImporter.BatchImport(slot, scanthesefiles.FindAll(i => !Path.GetExtension(i).ToLower().Equals(UNITY_META_EXTENSION)), Config.GetValue(importAsRawFiles));
+                }
+                else
+                {
+                    //bring in no prefabs or metas
+                    BatchFolderImporter.BatchImport(slot, notprefabsandmetas, Config.GetValue(importAsRawFiles));
+                }
+            }
+
+            await default(ToWorld);
+            if (Config.GetValue(ImportPrefab))
+            {
+                await importer.startImports(scanthesefiles, slot, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets"));
+            }
+                
+
+            await default(ToBackground);
+            Msg("FINISHED ALL IMPORTS AND DONE WITH ALL TASKS!!");
+        }
+
+        private static IEnumerable<string> FindPrefabsAndMetas(IEnumerable<string> files, out PrefabImporter importer)
+        {
             /*DebugMSG*/Msg("Start Finding Prefabs and Metas");
             //remove the meta files from the rest of the code later on in the return statements, since we don't want to let the importer bring in fifty bajillion meta files...
             List<string> ListOfNotMetasAndPrefabs = new List<string>();
             foreach (var file in files)
             {
                 var ending = Path.GetExtension(file).ToLower();
-                if (!(ending == UNITY_PREFAB_EXTENSION || ending == UNITY_META_EXTENSION))
+                if (!(ending.Equals(UNITY_PREFAB_EXTENSION) || ending.Equals(UNITY_META_EXTENSION)))
                 {
                     ListOfNotMetasAndPrefabs.Add(file);
                 }
@@ -207,10 +220,6 @@ public class UnityPackageImporter : ResoniteMod
 
             importer = new PrefabImporter();
 
-            if (shouldBeRaw)
-            {
-                return ListOfNotMetasAndPrefabs.ToArray();
-            }
 
             //first we iterate over every file to find metas and prefabs
 
@@ -218,6 +227,7 @@ public class UnityPackageImporter : ResoniteMod
             // all we do is read the meta file and steal the GUID from there to get our identifiers in the Prefabs
             foreach (var file in files)
             {
+                UnityPackageImporter.Msg("A file being imported is \""+file+"\"");
                 var ending = Path.GetExtension(file).ToLower();
                 switch (ending)
                 {
@@ -226,7 +236,6 @@ public class UnityPackageImporter : ResoniteMod
                     case UNITY_META_EXTENSION:
                         string filename = file.Substring(0, file.Length - Path.GetExtension(file).Length); //since every meta is filename + extension + ".meta" we can cut off the extension and have the original file name and path.
                         string fileGUID = File.ReadLines(file).ToArray()[1].Split(':')[1].Trim(); // the GUID is on the first line in the file (not 0th) after a colon and space, so trim it to get id.
-                        Msg("Adding Asset id with id " + fileGUID + " and file name " + filename);
                         importer.AssetIDDict.Add(fileGUID, filename);
                         if (Path.GetExtension(filename).ToLower() == UNITY_PREFAB_EXTENSION)//if our meta coorisponds to a prefab
                         {
@@ -241,6 +250,8 @@ public class UnityPackageImporter : ResoniteMod
         }
     }
 
+
+    //unused, should we keep? - @989onan
     private static bool ShouldImportFile(string file)
     {
         var extension = Path.GetExtension(file).ToLower();
@@ -254,8 +265,6 @@ public class UnityPackageImporter : ResoniteMod
             || (Config.GetValue(importVideo) && assetClass == AssetClass.Video)
             /* Handle an edge case where assimp will try to import .xml files as 3D models*/
             || (Config.GetValue(importMesh) && assetClass == AssetClass.Model && extension != ".xml")
-            /* Add file if it is a prefab / Add the .meta files into the pile so we can read them to find models later.*/
-            || (Config.GetValue(ImportPrefab) && (extension == UNITY_PREFAB_EXTENSION ||  (extension == UNITY_META_EXTENSION)))
             /* Handle recursive unity package imports */
             || extension == UNITY_PACKAGE_EXTENSION;                                                            
     }

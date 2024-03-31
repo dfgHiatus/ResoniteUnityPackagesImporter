@@ -76,10 +76,18 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 int counter = 0;
                 foreach(Dictionary<string, string> material in m_Materials)
                 {
-                    await default(ToWorld);
+                    
                     try
                     {
-                        materials.Add(counter, new FileImportHelperTaskMaterial(material["guid"], importer));
+                        if (importer.AssetIDDict.ContainsKey(material["guid"]))
+                        {
+                            await default(ToWorld);
+                            string file = importer.AssetIDDict[material["guid"]];
+                            var matimporttask = new FileImportHelperTaskMaterial(material["guid"], file, importer);
+                            materials.Add(counter, matimporttask);
+                            await default(ToBackground);
+                        }
+                        
                     }
                     catch (Exception e)
                     {
@@ -88,7 +96,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     }
                     
                     
-                    await default(ToBackground);
+                    
                     counter += 1;
 
 

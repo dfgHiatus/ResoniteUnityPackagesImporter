@@ -22,17 +22,9 @@ namespace UnityPackageImporter.Models
         public Slot matslot;
         public PrefabImporter importer;
 
-        public FileImportHelperTaskMaterial(string myID, PrefabImporter importer)
+        public FileImportHelperTaskMaterial(string myID, string file, PrefabImporter importer)
         {
             this.importer = importer;
-            try
-            {
-                this.file = importer.AssetIDDict[myID];
-            }
-            catch
-            {
-                throw new FileNotFoundException("Could not find the material with the id \"" + myID + "\" for a prefab!");
-            }
 
             UnityPackageImporter.Msg("Importing material with ID: \""+myID+"\"");
             UnityPackageImporter.Msg("and a file of: \"" + this.file + "\"");

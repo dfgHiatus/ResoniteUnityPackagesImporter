@@ -57,6 +57,9 @@
     <Reference Include="Elements.Core">
       <HintPath>$(GamePath)Resonite_Data\Managed\Elements.Core.dll</HintPath>
     </Reference>
+    <Reference Include="Assembly">
+      <HintPath>$(GamePath)Resonite_Data/Managed/Assembly-CSharp.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>$(GamePath)Resonite_Data/Managed/UnityEngine.dll</HintPath>
     </Reference>

@@ -28,6 +28,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 instanciated = true;
                 await default(ToWorld);
                 frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
+                frooxEngineSlot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
                 frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
                 await default(ToBackground);
             }

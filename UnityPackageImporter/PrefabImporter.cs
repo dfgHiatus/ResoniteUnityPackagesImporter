@@ -42,6 +42,7 @@ namespace UnityPackageImporter
 
         public async Task startImports(IEnumerable<string> files, Slot root, Slot assetsRoot)
         {
+            await default(ToBackground);
             UnityPackageImporter.Msg("Start Prefab Importing unitypackage");
             //skip if raw files since we didn't do our setup and the user wants raw files.
             this.files = files as List<string>;
@@ -131,7 +132,7 @@ namespace UnityPackageImporter
 
 
             //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
-            await default(ToBackground);
+            await default(ToWorld);
             foreach (var obj in unityprefabimports)
             {
                 await obj.Value.instanciateAsync(unityprefabimports, this);
@@ -186,24 +187,16 @@ namespace UnityPackageImporter
             UnityPackageImporter.Msg("Importing models");
 
 
-            await AttachAssetsToPrefabWrapper(prefabslot, files);
+            await AttachAssetsToPrefab(prefabslot);
             await default(ToBackground);
             UnityPackageImporter.Msg("Prefab finished!");
         }
 
-
-        private async Task AttachAssetsToPrefabWrapper(Slot root, IEnumerable<string> files)
+        private async Task AttachAssetsToPrefab(Slot root)
         {
-            await default(ToBackground);
-            await AttachAssetsToPrefab(root, files);
+            
 
-        }
-
-        private async Task AttachAssetsToPrefab(Slot root, IEnumerable<string> files)
-        {
-            await default(ToBackground);
-
-
+            await default(ToWorld);
             List<ImportMeshTask> Tasks = new List<ImportMeshTask>();
 
             List<string> StartedImports_GUIDs = new List<string>();
@@ -218,9 +211,28 @@ namespace UnityPackageImporter
                 ulong meshRendererID = requestingMeshRenderer.id;
                 if (!StartedImports_GUIDs.Contains(requestedTask.Value))
                 {
-                    UnityPackageImporter.Msg("Generating tasks for import: " + requestedTask.Value);
-                    StartedImports_GUIDs.Add(requestedTask.Value);
-                    Tasks.Add(new ImportMeshTask(requestingMeshRenderer, new FileImportTask(root, requestedTask.Value, this), root, this));
+                    for (int i = 0; i < 100; i++)
+                    {
+                        
+                    }
+                    if (this.AssetIDDict.ContainsKey(requestedTask.Value))
+                    {
+                        StartedImports_GUIDs.Add(requestedTask.Value);
+                        
+                        UnityPackageImporter.Msg("Generating tasks for import: " + requestedTask.Value);
+                        await FrooxEngineBootstrap.LogStream.FlushAsync();
+                        Tasks.Add(new ImportMeshTask(requestingMeshRenderer, new FileImportTask(root, requestedTask.Value, this, this.AssetIDDict[requestedTask.Value]), root, this));
+
+                    }
+                    else
+                    {
+                        for (int i = 0; i < 100; i++)
+                        {
+                            UnityPackageImporter.Msg("TASK DOES NOT HAVE FILE: " + requestedTask.Value);
+                        }
+                    }
+                    
+                    
                 }
                 else
                 {
@@ -228,30 +240,17 @@ namespace UnityPackageImporter
                     Tasks.Add(new ImportMeshTask(requestingMeshRenderer, Tasks.Find(i => i.fileImportTask.assetID == requestedTask.Value).fileImportTask, root, this));
                 }
             }
-            UnityPackageImporter.Msg("Gathering wait jobs");
-            List<Task> waiters = new List<Task>();
-            foreach (var t in Tasks)
-            {
-                if (!t.fileImportTask.running)
-                {
-                    waiters.Add(t.fileImportTask.runImportFilesAsync());
-                }
 
-            }
-            UnityPackageImporter.Msg("Waiting on asset import tasks now...");
+            UnityPackageImporter.Msg("waiting on file import tasks");
+            await FrooxEngineBootstrap.LogStream.FlushAsync();
+            await Task.WhenAll(Tasks.Select(i => i.fileImportTask.runnerWrapper()));
 
-
-            await default(ToBackground);
-            await Task.WhenAll(waiters);
-            
-            await default(ToWorld);
-
-            waiters = new List<Task>();
-
-            await default(ToWorld);
             UnityPackageImporter.Msg("Waiting on asset mesh and material attaching import tasks now...");
-            await Task.WhenAll(Tasks.Select(t => t.ImportMeshTaskRunner()));
+            await FrooxEngineBootstrap.LogStream.FlushAsync();
+            await Task.WhenAll(Tasks.Select(i => i.ImportMeshTaskRunner()));
+
             UnityPackageImporter.Msg("Starting on final parts");
+            await FrooxEngineBootstrap.LogStream.FlushAsync();
             await default(ToWorld);
             oldSlots = new List<Slot>();
             foreach (ImportMeshTask task in Tasks)

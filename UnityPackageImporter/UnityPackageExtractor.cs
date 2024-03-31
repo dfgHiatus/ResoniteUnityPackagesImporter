@@ -1,5 +1,6 @@
 ﻿using Elements.Core;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 
@@ -9,11 +10,13 @@ public class UnityPackageExtractor
 {
     private static readonly char[] TheAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".ToCharArray();
 
-    public static void Unpack(string input, string outputDir)
+    public static List<string> Unpack(string input, string outputDir)
     {
         // Fun fact! Unity packages are actually just tar.gz files with a different extension
         var a = File.OpenRead(input);
         var b = new GZipStream(a, CompressionMode.Decompress);
+        List<string> filenames = new List<string>();
+
 
         try
         {
@@ -61,12 +64,13 @@ public class UnityPackageExtractor
 
                 var outFile = Path.Combine(outPath, Path.GetFileName(pathName));
 
-                if (!File.Exists(outFile)) 
-                    File.Copy(assetPath, outFile);
+                File.Copy(assetPath, outFile, true);
+                filenames.Add(outFile);
 
-                if (UnityPackageImporter.Config.GetValue(UnityPackageImporter.ImportPrefab))
+                if (UnityPackageImporter.Config.GetValue(UnityPackageImporter.ImportPrefab) && File.Exists(metafile))
                 {
-                    if (!File.Exists(outFile)) File.Copy(metafile, outFile);
+                    File.Copy(metafile, outFile + ".meta", true);
+                    filenames.Add(outFile + ".meta");
                 }
             }
             Directory.Delete(temp, true);
@@ -80,5 +84,6 @@ public class UnityPackageExtractor
             b.Close();
             a.Close();
         }
+        return filenames;
     }
 }

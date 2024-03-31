@@ -26,8 +26,7 @@ public class ImportMeshTask
 
     public async Task ImportMeshTaskRunner()
     {
-        await default(ToBackground);
-
+        await default(ToWorld);
         UnityPackageImporter.Msg("finding skin mesh renderer.");
         FrooxEngine.SkinnedMeshRenderer FoundMesh = this.fileImportTask.data.skinnedRenderers.Find(i => i.Slot.Name == requestingMeshRenderer.Name);
         requestingMeshRenderer.createdMeshRenderer = FoundMesh;
@@ -54,9 +53,11 @@ public class ImportMeshTask
         UnityPackageImporter.Msg("finished waiting for mesh assets for: \"" + FoundMesh.Slot.Name + "\"");
 
         await default(ToWorld);
+        FoundMesh.Enabled = requestingMeshRenderer.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported.
+        FoundMesh.Slot.ActiveSelf = requestingMeshRenderer.parentobj.frooxEngineSlot.ActiveSelf; //same here
         requestingMeshRenderer.parentobj.frooxEngineSlot.Destroy(); //get rid of the old slot, so we have the one froox engine imported with assimp.
         requestingMeshRenderer.parentobj.frooxEngineSlot = requestingMeshRenderer.createdMeshRenderer.Slot; //change it's slot to the new one so we don't cause strange errors with other code.
-        FoundMesh.Enabled = requestingMeshRenderer.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported.
+        
         FoundMesh.ExplicitLocalBounds.Value = 
             Elements.Core.BoundingBox.CenterSize(
                 new Elements.Core.float3(
@@ -99,31 +100,27 @@ public class ImportMeshTask
         UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
         for (int index = 0; index < requestingMeshRenderer.m_Materials.Count(); index++)
         {
-            try
+            
+            if (requestingMeshRenderer.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask))
             {
-                await default(ToWorld);
-                requestingMeshRenderer.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask);
-                FoundMesh.Materials[index] = await materialtask.runImportFileMaterialsAsync();
-                await default(ToBackground);
-            }
-            catch
-            {
-
                 try
                 {
                     await default(ToWorld);
-                    requestingMeshRenderer.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask2);
-                    FoundMesh.Materials.Add().Target = await materialtask2.runImportFileMaterialsAsync();
+                    FoundMesh.Materials.Add().Target = await materialtask.runImportFileMaterialsAsync();
                     await default(ToBackground);
                 }
                 catch (Exception e)
                 {
-                    UnityPackageImporter.Msg("Could not attach material \"" + index.ToString() + "\" on mesh \""+ FoundMesh.Slot.Name + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
+                    UnityPackageImporter.Msg("Could not attach material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
                     UnityPackageImporter.Msg("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
                     UnityPackageImporter.Msg(e.Message);
+                    await default(ToWorld);
                     FoundMesh.Materials.Add();
+                    await default(ToBackground);
                 }
             }
+                
+            
 
         }
 
