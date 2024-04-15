@@ -51,6 +51,9 @@
     <Reference Include="Assimp">
       <HintPath>$(GamePath)Resonite_Data\Managed\AssimpNet.dll</HintPath>
     </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>$(GamePath)Resonite_Data\Managed\System.Memory.dll</HintPath>
+    </Reference>
     <Reference Include="Elements.Assets">
       <HintPath>$(GamePath)Resonite_Data\Managed\Elements.Assets.dll</HintPath>
     </Reference>
@@ -99,7 +102,6 @@
     <Compile Include="Models\ImportMeshTask.cs" />
     <Compile Include="Models\MetaDataFile.cs" />
     <Compile Include="Models\FileImportTask.cs" />
-    <Compile Include="PrefabImporter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TarTarSource.cs" />
     <Compile Include="UnityPackageExtractor.cs" />

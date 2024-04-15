@@ -16,6 +16,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public Dictionary<string, float> m_LocalPosition;
         public Dictionary<string, float> m_LocalScale;
         public Dictionary<string, ulong> m_Father;
+        public SourceObj m_CorrespondingSourceObject { get; set; }
+        public ulong m_PrefabInstance { get; set; }
         public ulong id { get; set; }
         public bool instanciated {  get; set; }
 
@@ -28,7 +30,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         }
 
         //this is the magic that allows us to construct an entire game object prefab with just yaml parsing.
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
         {
             if (!instanciated)
             {
@@ -77,7 +79,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                 
             }
-            
+
+
 
         }
 

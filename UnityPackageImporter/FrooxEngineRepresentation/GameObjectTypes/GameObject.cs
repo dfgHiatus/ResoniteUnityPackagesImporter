@@ -14,6 +14,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public int m_IsActive = 1;
         public bool instanciated { get; set; }
         public ulong id { get; set; }
+        public SourceObj m_CorrespondingSourceObject { get; set; }
+        public ulong m_PrefabInstance { get; set; }
 
         public Slot frooxEngineSlot;
 
@@ -21,7 +23,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         }
 
 
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
         {
             if (!instanciated)
             {
@@ -32,6 +34,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
                 await default(ToBackground);
             }
+
             
         }
 

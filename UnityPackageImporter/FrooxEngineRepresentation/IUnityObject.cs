@@ -8,7 +8,18 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
     {
         ulong id { get; set; }
         bool instanciated { get; set; }
+        SourceObj m_CorrespondingSourceObject {  get; set; }
+        ulong m_PrefabInstance {  get; set; }
+        Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer);
 
-        Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer);
+    }
+
+    public class SourceObj
+    {
+        public long fileID;
+        public string guid;
+        public int type;
+
+        
     }
 }

@@ -23,6 +23,7 @@ public class UnityPackageImporter : ResoniteMod
 
     internal const string UNITY_PACKAGE_EXTENSION = ".unitypackage";
     internal const string UNITY_PREFAB_EXTENSION = ".prefab";
+    internal const string UNITY_SCENE_EXTENSION = ".unity";
     internal const string UNITY_META_EXTENSION = ".meta";
     internal const string TEMP_ORPHAN_NODES_SLOT_NAME = "temp889347298";
 
@@ -178,7 +179,7 @@ public class UnityPackageImporter : ResoniteMod
             
 
             Msg("CALLING FindPrefabsAndMetas");
-            List<string> notprefabsandmetas = FindPrefabsAndMetas(scanthesefiles, out PrefabImporter importer).ToList();
+            List<string> notprefabsandmetas = FindPrefabsAndMetas(scanthesefiles, out UnityStructureImporter importer).ToList();
             if (Config.GetValue(dumpPackageContents))
             {
                 if (Config.GetValue(ImportPrefab))
@@ -196,7 +197,7 @@ public class UnityPackageImporter : ResoniteMod
             await default(ToWorld);
             if (Config.GetValue(ImportPrefab))
             {
-                await importer.startImports(scanthesefiles, slot, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets"));
+                await importer.startImports(slot, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets"));
             }
                 
 
@@ -204,7 +205,7 @@ public class UnityPackageImporter : ResoniteMod
             Msg("FINISHED ALL IMPORTS AND DONE WITH ALL TASKS!!");
         }
 
-        private static IEnumerable<string> FindPrefabsAndMetas(IEnumerable<string> files, out PrefabImporter importer)
+        private static IEnumerable<string> FindPrefabsAndMetas(IEnumerable<string> files, out UnityStructureImporter importer)
         {
             /*DebugMSG*/Msg("Start Finding Prefabs and Metas");
             //remove the meta files from the rest of the code later on in the return statements, since we don't want to let the importer bring in fifty bajillion meta files...
@@ -218,9 +219,11 @@ public class UnityPackageImporter : ResoniteMod
                 }
             }
 
-            importer = new PrefabImporter();
 
-
+            Dictionary<string, string> AssetIDDict = new Dictionary<string, string>();
+            Dictionary<string, string> ListOfPrefabs = new Dictionary<string, string>();
+            Dictionary<string, string> ListOfMetas = new Dictionary<string, string>();
+            Dictionary<string, string> ListOfUnityScenes = new Dictionary<string, string>();
             //first we iterate over every file to find metas and prefabs
 
             //we make a dictionary that associates the GUID of unity files with their paths. The files given to us are in a cache, with the directories already structured properly and the names fixed.
@@ -229,6 +232,7 @@ public class UnityPackageImporter : ResoniteMod
             {
                 UnityPackageImporter.Msg("A file being imported is \""+file+"\"");
                 var ending = Path.GetExtension(file).ToLower();
+                
                 switch (ending)
                 {
                     case UNITY_PREFAB_EXTENSION:
@@ -236,15 +240,21 @@ public class UnityPackageImporter : ResoniteMod
                     case UNITY_META_EXTENSION:
                         string filename = file.Substring(0, file.Length - Path.GetExtension(file).Length); //since every meta is filename + extension + ".meta" we can cut off the extension and have the original file name and path.
                         string fileGUID = File.ReadLines(file).ToArray()[1].Split(':')[1].Trim(); // the GUID is on the first line in the file (not 0th) after a colon and space, so trim it to get id.
-                        importer.AssetIDDict.Add(fileGUID, filename);
+                        AssetIDDict.Add(fileGUID, filename);
                         if (Path.GetExtension(filename).ToLower() == UNITY_PREFAB_EXTENSION)//if our meta coorisponds to a prefab
                         {
-                            importer.ListOfPrefabs.Add(fileGUID, filename);
+                            ListOfPrefabs.Add(fileGUID, filename);
                         }
-                        importer.ListOfMetas.Add(fileGUID, file);
+                        if (Path.GetExtension(filename).ToLower() == UNITY_SCENE_EXTENSION)//if our meta coorisponds to a prefab
+                        {
+                            ListOfUnityScenes.Add(fileGUID, filename);
+                        }
+                        ListOfMetas.Add(fileGUID, file);
                         break;
                 }
             }
+
+            importer = new UnityStructureImporter(files, AssetIDDict, ListOfPrefabs, ListOfMetas, ListOfUnityScenes);
             Msg("end Finding Prefabs and Metas");
             return ListOfNotMetasAndPrefabs.ToArray(); 
         }

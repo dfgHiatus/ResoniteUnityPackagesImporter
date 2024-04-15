@@ -20,9 +20,9 @@ namespace UnityPackageImporter.Models
         public string myID;
         public Slot assetsRoot;
         public Slot matslot;
-        public PrefabImporter importer;
+        public UnityStructureImporter importer;
 
-        public FileImportHelperTaskMaterial(string myID, string file, PrefabImporter importer)
+        public FileImportHelperTaskMaterial(string myID, string file, UnityStructureImporter importer)
         {
             this.importer = importer;
 

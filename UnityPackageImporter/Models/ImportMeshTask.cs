@@ -15,8 +15,8 @@ public class ImportMeshTask
     public FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer requestingMeshRenderer; //this is our key value, it tells us which mesh this model was being imported for
     public FileImportTask fileImportTask; //this can be the same as another tasks value for this very often (Aka our task may be the same as another import task). This tells us what file the mesh is in, and the task we have to wait for before it exists.
     public Slot PrefabRoot; //what prefab of the many we may be importing that this task belongs to.
-    public PrefabImporter importer;
-    public ImportMeshTask(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer requestingMeshRenderer, FileImportTask fileImportTask, Slot PrefabRoot, PrefabImporter importer)
+    public UnityStructureImporter importer;
+    public ImportMeshTask(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer requestingMeshRenderer, FileImportTask fileImportTask, Slot PrefabRoot, UnityStructureImporter importer)
     {
         this.fileImportTask = fileImportTask;
         this.requestingMeshRenderer = requestingMeshRenderer;

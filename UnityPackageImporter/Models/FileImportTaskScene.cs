@@ -9,25 +9,30 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Text;
 using static FrooxEngine.ModelImporter;
 using System.Diagnostics;
+using UnityEngine.SceneManagement;
+using MonoMod.Utils;
 
 namespace UnityPackageImporter.Models
 {
-    public class FileImportTask
+    public class FileImportTaskScene
     {
         public ModelImportData data;
+        public Dictionary<ulong, Slot> FILEID_To_Slot_Pairs = new Dictionary<ulong, Slot>();
         public string file;
         private UnityStructureImporter importer;
         public string assetID;
         public bool import_finished = false;
 
         Slot targetSlot;
+        public Slot FinishedFileSlot = null;
         public bool postprocessfinished = false;
         public bool? isBiped;
         public bool running;
 
-        public FileImportTask(Slot targetSlot, string assetID, UnityStructureImporter importer, string file)
+        public FileImportTaskScene(Slot targetSlot, string assetID, UnityStructureImporter importer, string file)
         {
             this.targetSlot = targetSlot;
             this.file = file;
@@ -84,54 +89,36 @@ namespace UnityPackageImporter.Models
             UnityPackageImporter.Msg("making model import data for file: " + file);
             this.data = new ModelImportData(file, scene, this.targetSlot, importer.importTaskAssetRoot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
             UnityPackageImporter.Msg("importing node into froox engine, file: " + file);
-            Task.WaitAll(recursiveNodeParserAsync(scene.RootNode, targetSlot, data));
+            Context.WaitFor(ImportNode(scene.RootNode, targetSlot, data));
             UnityPackageImporter.Msg("Finished task for file " + file);
-
+            this.FinishedFileSlot = data.TryGetSlot(scene.RootNode); //get the slot in case it was dumped beside a bunch of others.
+            FILEID_To_Slot_Pairs = RecusiveFileIDSlotFinder(scene.RootNode);
             this.running = false;
         }
 
-
-
-        public static Task recursiveNodeParserAsync(Node node, Slot targetSlot, ModelImportData data)
+        public static Dictionary<ulong, Slot> RecusiveFileIDSlotFinder(ModelImportData data, Node root)
         {
-            TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
-            targetSlot.StartCoroutine(recursiveNodeParserWrapper(node, targetSlot, data, taskCompletionSource));
-            return taskCompletionSource.Task;
-        }
+            Dictionary<ulong, Slot> FILEID_into_Slot_Pairs = new Dictionary<ulong, Slot>();
 
-        public static IEnumerator<Context> recursiveNodeParserWrapper(Node node, Slot targetSlot, ModelImportData data, TaskCompletionSource<bool> completion = null)
-        {
-            yield return Context.WaitFor(recursiveNodeParser(node, targetSlot, data));
-            completion.SetResult(result: true);
-        }
-        public static IEnumerator<Context> recursiveNodeParser(Node node, Slot targetSlot, ModelImportData data)
-        {
+            Slot curnode = data.TryGetSlot(root);
 
-           
-            
-            if (node.MeshCount > 0)
+            XxHash64 _xhash32 = new XxHash64();
+            var bytes = Encoding.UTF8.GetBytes("Type:GameObject->//RootNode/root/FemaleClothesNoSocks0");
+            var stream = new MemoryStream(bytes);
+            _xhash32.Append(stream);
+            ulong hashBytes = _xhash32.GetCurrentHashAsUInt64();
+            Console.WriteLine((long)hashBytes);
+            FILEID_into_Slot_Pairs.Add(curnode.Name);
+            if (root.ChildCount > 0)
             {
-                //by calling import node in this weird way only when we find a mesh, it will set up the mesh for us but ignore
-                //all of the bones and stuff, making the meshes easier to handle.
-                UnityPackageImporter.Msg("Importing Mesh \"" + node.Name + "\"");
-                yield return Context.WaitFor(ImportNode(node, targetSlot, data));
-                yield break;
-            }
-            
-            if(!node.HasChildren)
-            {
-                yield break;
+                foreach(Node child in root.Children)
+                {
+                    FILEID_into_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(data, child));
+                }
+                
             }
 
-            yield return Context.ToBackground();
-            foreach (Node child in node.Children)
-            {
-                yield return Context.WaitFor(recursiveNodeParser(child, targetSlot, data));
-            }
-
-
-
-            
+            return FILEID_into_Slot_Pairs;
         }
 
 

@@ -26,44 +26,198 @@ using YamlDotNet.Serialization;
 
 namespace UnityPackageImporter
 {
-    public class PrefabImporter
+    public class UnityStructureImporter
     {
 
-        public Dictionary<string, string> ListOfMetas = new Dictionary<string, string>();
-        public Dictionary<string, string> ListOfPrefabs = new Dictionary<string, string>();
+        public Dictionary<string, string> ListOfMetas;
         public Slot importTaskAssetRoot;
         public Dictionary<ulong, string> MeshRendererID_To_FileGUID = new Dictionary<ulong, string>();
         public List<FileImportHelperTaskMaterial> TasksMaterials = new List<FileImportHelperTaskMaterial>();
         public List<Slot> oldSlots = new List<Slot>();
 
-        public Dictionary<string, string> AssetIDDict = new Dictionary<string, string>();
-        public List<string> files;
-        public Dictionary<ulong, IUnityObject> unityprefabimports = new Dictionary<ulong, IUnityObject>();
+        public List<string> importedFBXScenes = new List<string>();
 
-        public async Task startImports(IEnumerable<string> files, Slot root, Slot assetsRoot)
+        public Dictionary<string, string> AssetIDDict;
+
+        public Dictionary<string, string> ListOfUnityScenes;
+
+        public List<string> files;
+        public Slot root;
+        public Dictionary<ulong, IUnityObject> unityprefabimports = new Dictionary<ulong, IUnityObject>();
+        public Dictionary<ulong, IUnityObject> unitysceneimports = new Dictionary<ulong, IUnityObject>();
+        public Dictionary<string, string> ListOfPrefabs;
+
+
+        public UnityStructureImporter(IEnumerable<string> files, Dictionary<string, string> AssetIDDict, Dictionary<string, string> ListOfPrefabs, Dictionary<string, string> ListOfMetas, Dictionary<string, string> ListOfUnityScenes)
         {
+            this.files = files as List<string>;
+            
+            
+            this.ListOfPrefabs = ListOfPrefabs;
+            this.ListOfMetas = ListOfMetas;
+            this.AssetIDDict = AssetIDDict;
+            this.ListOfUnityScenes = ListOfUnityScenes;
+        }
+
+        public async Task startImports(Slot root, Slot assetsRoot)
+        {
+            this.importTaskAssetRoot = assetsRoot;
+            this.root = root;
             await default(ToBackground);
             UnityPackageImporter.Msg("Start Prefab Importing unitypackage");
             //skip if raw files since we didn't do our setup and the user wants raw files.
-            this.files = files as List<string>;
-            importTaskAssetRoot = assetsRoot;
+            
+            
 
             //now we have a full list of meta files and prefabs regarding this import file list from our prefix (where ever this is even if not a unity package folder) we now begin the hard part
             // *drums* making the files go onto the model! 
 
-            foreach (var Prefab in ListOfPrefabs)
+            foreach (var Prefab in this.ListOfPrefabs)
             {
+
                 UnityPackageImporter.Msg("Start prefab import");
-                await LoadPrefabUnity(files, root, Prefab); //did this so something can be done with it later.
+                await LoadPrefabUnity(Prefab); //did this so something can be done with it later.
 
                 UnityPackageImporter.Msg("End prefab import");
             }
-            UnityPackageImporter.Msg("end Prefab Importing patch unitypackage");
+            UnityPackageImporter.Msg("end Prefab Importing patch unitypackage, starting on scenes");
+            foreach(var Scene in this.ListOfUnityScenes)
+            {
+                UnityPackageImporter.Msg("Start scene import");
+                await LoadSceneUnity(Scene); //did this so something can be done with it later.
+
+                UnityPackageImporter.Msg("End scene import");
+            }
         }
 
+        private async Task LoadSceneUnity(KeyValuePair<string, string> SceneID)
+        {
+            await default(ToWorld);
+            var SceneSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(SceneID.Value));
+            SceneSlot.SetParent(this.root, false);
+            await default(ToBackground);
+            //begin the parsing of our prefabs.
+            //begin the parsing of our prefabs.
+
+            //parse loop
+            //now using the power of yaml we can make this a bit more reliable and hopefully smaller.
+            //reading unity prefabs as yaml allows us to much more easily obtain the data we need.
+            //Unity yamls are different, but with a little trickery we can still read them with a library.
 
 
-        private async Task LoadPrefabUnity(IEnumerable<string> files, Slot slot, KeyValuePair<string, string> PrefabID)
+
+            using var sr = File.OpenText(SceneID.Value);
+
+            var deserializer = new DeserializerBuilder().WithNodeTypeResolver(new UnityNodeTypeResolver()).IgnoreUnmatchedProperties().Build();
+
+            var parser = new Parser(sr);
+
+            StringBuilder debugScene = new StringBuilder();
+            parser.Consume<StreamStart>();
+            DocumentStart variable;
+            while (parser.Accept<DocumentStart>(out variable) == true)
+            {
+                // Deserialize the document
+                try
+                {
+                    UnityEngineObjectWrapper docWrapped = deserializer.Deserialize<UnityEngineObjectWrapper>(parser);
+                    IUnityObject doc = docWrapped.Result();
+                    doc.id = UnityNodeTypeResolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
+                    //since deserializing happens before adding to the list and those are done syncronously with each other, it is fine.
+                    unitysceneimports.Add(doc.id, doc);
+                }
+                catch (Exception e)
+                {
+                    UnityPackageImporter.Msg("Couldn't evaluate node type. stacktrace below");
+                    UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                    try
+                    {
+                        IUnityObject doc = new FrooxEngineRepresentation.GameObjectTypes.NullType();
+                        doc.id = UnityNodeTypeResolver.anchor;
+                        unitysceneimports.Add(doc.id, doc);
+                    }
+                    catch (ArgumentException e2)
+                    {/*idc.*/
+                        UnityPackageImporter.Msg("Duplicate key probably. just ignore this.");
+                        UnityPackageImporter.Warn(e2.Message + e2.StackTrace);
+                    }
+
+                }
+
+
+
+            }
+
+            //some debugging for the user to show them it worked or failed.
+
+            UnityPackageImporter.Msg("Loaded " + unitysceneimports.Count.ToString() + " Unity objects/components/prefabs/lights ETC!");
+
+            //find FBX's in our scene that need importing, so we can import them and then attach our prefab objects to it.
+            await default(ToWorld);
+            foreach (var obj in unitysceneimports)
+            {
+                if (obj.Value.m_CorrespondingSourceObject.guid != "" && this.AssetIDDict.ContainsKey(obj.Value.m_CorrespondingSourceObject.guid) && !importedFBXScenes.Contains(obj.Value.m_CorrespondingSourceObject.guid))
+                {
+                    this.importedFBXScenes.Add(obj.Value.m_CorrespondingSourceObject.guid);
+                    UnityPackageImporter.Debug("now importing \"" + this.AssetIDDict[obj.Value.m_CorrespondingSourceObject.guid] + "\" for the scene +\""+ SceneID.Value + "\"!");
+                    await new FileImportTaskScene(SceneSlot, obj.Value.m_CorrespondingSourceObject.guid, this, this.AssetIDDict[obj.Value.m_CorrespondingSourceObject.guid]).runnerWrapper();
+                }
+            }
+
+            //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
+
+            await default(ToWorld);
+            foreach (var obj in unitysceneimports)
+            {
+                await obj.Value.instanciateAsync(unitysceneimports, this);
+                debugScene.Append(obj.Value.ToString());
+            }
+            await default(ToBackground);
+
+            List<IUnityObject> destroythese = new List<IUnityObject>();
+
+            foreach (var obj in unitysceneimports)
+            {
+                if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.Transform))
+                {
+                    FrooxEngineRepresentation.GameObjectTypes.Transform trans = obj.Value as FrooxEngineRepresentation.GameObjectTypes.Transform;
+                    if (trans != null)
+                    {
+                        if (trans.m_FatherID == 0)
+                        {
+                            destroythese.Add(trans);
+                            destroythese.Add(unitysceneimports[trans.m_GameObjectID]);
+                        }
+                    }
+                }
+            }
+
+            //getting rid of objects that should go under the prefab slot.
+            foreach (var obj in destroythese)
+            {
+                obj.instanciated = false;
+                if (obj.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.GameObject))
+                {
+                    FrooxEngineRepresentation.GameObjectTypes.GameObject gameobj = obj as FrooxEngineRepresentation.GameObjectTypes.GameObject;
+                    await default(ToWorld);
+                    foreach (Slot prefabImmediateChild in gameobj.frooxEngineSlot.Children.ToArray())
+                    {
+                        prefabImmediateChild.SetParent(SceneSlot, false);
+                    }
+                    gameobj.frooxEngineSlot.Destroy();
+                    await default(ToBackground);
+                }
+                unitysceneimports.Remove(obj.id);
+            }
+
+            await default(ToBackground);
+            UnityPackageImporter.Debug("now debugging every object after instanciation!");
+            UnityPackageImporter.Debug(debugScene.ToString());
+            UnityPackageImporter.Msg("Yaml generation done");
+            UnityPackageImporter.Msg("Scene finished!");
+        }
+
+        private async Task LoadPrefabUnity(KeyValuePair<string, string> PrefabID)
         {
 
 
@@ -71,7 +225,7 @@ namespace UnityPackageImporter
 
             await default(ToWorld);
             var prefabslot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(PrefabID.Value));
-            prefabslot.SetParent(slot, false);
+            prefabslot.SetParent(this.root, false);
             await default(ToBackground);
             //begin the parsing of our prefabs.
             //begin the parsing of our prefabs.
@@ -226,10 +380,8 @@ namespace UnityPackageImporter
                     }
                     else
                     {
-                        for (int i = 0; i < 100; i++)
-                        {
-                            UnityPackageImporter.Msg("TASK DOES NOT HAVE FILE: " + requestedTask.Value);
-                        }
+                        UnityPackageImporter.Msg("TASK DOES NOT HAVE FILE: " + requestedTask.Value);
+                        await FrooxEngineBootstrap.LogStream.FlushAsync();
                     }
                     
                     

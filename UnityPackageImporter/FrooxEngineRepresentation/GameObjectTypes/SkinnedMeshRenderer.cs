@@ -24,6 +24,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public List<Dictionary<string, ulong>> m_Bones;
         public FrooxEngine.SkinnedMeshRenderer createdMeshRenderer;
         public GameObject parentobj;
+        public SourceObj m_CorrespondingSourceObject { get; set; }
+        public ulong m_PrefabInstance { get; set; }
 
         public AABB m_AABB;
 
@@ -32,7 +34,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         //this doesn't fully instanciate it, since we have to import our files all at once.
         //instead we register ourselfs into a list of meshes that wanna be imported, so we can import each model once.
         //this is done later in the unitypackage importer process, where we scan the dictionary we're adding our own id to so we can import our model and finalize.
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, PrefabImporter importer)
+        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
         {
 
             if (!instanciated)
@@ -105,7 +107,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                 
             }
-            
+
+
         }
 
         //to store aabb data to bring into froox engine for skinned mesh renderers
