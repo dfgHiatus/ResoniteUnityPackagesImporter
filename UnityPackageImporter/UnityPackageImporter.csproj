@@ -92,6 +92,7 @@
   <ItemGroup>
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Component.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\NullType.cs" />
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\PrefabInstance.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\SkinnedMeshRenderer.cs" />
     <Compile Include="FrooxEngineRepresentation\IUnityObject.cs" />
     <Compile Include="FrooxEngineRepresentation\UnityEngineObjectWrapper.cs" />
