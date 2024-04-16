@@ -41,7 +41,7 @@ public class UnityPackageImporter : ResoniteMod
      new ModConfigurationKey<bool>("importAsRawFiles", "Import Binaries: Import files as raw binaries", () => false);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> ImportPrefab =
-         new ModConfigurationKey<bool>("importPrefab", "Import Prefabs: Import prefabs inside unity packages (DISABLES ALL UNLESS \"Import files inside of unity packages\" IS ENABLED)", () => true);
+         new ModConfigurationKey<bool>("importPrefab", "Import Prefabs and Scenes: Import prefabs inside unity packages (DISABLES ALL UNLESS \"Import files inside of unity packages\" IS ENABLED)", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> importText =
          new ModConfigurationKey<bool>("importText", "Import Text: Import text inside packages", () => true);

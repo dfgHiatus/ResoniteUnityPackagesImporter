@@ -1,4 +1,5 @@
 ﻿using FrooxEngine;
+using Leap.Unity;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -15,7 +16,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public bool instanciated { get; set; }
         public ulong id { get; set; }
         public SourceObj m_CorrespondingSourceObject { get; set; }
-        public ulong m_PrefabInstance { get; set; }
+        public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
         public Slot frooxEngineSlot;
 
@@ -29,7 +30,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             {
                 instanciated = true;
                 await default(ToWorld);
-
                 frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
                 frooxEngineSlot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
                 frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
@@ -48,6 +48,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             result.AppendLine("m_IsActive: "+ m_IsActive.ToString());
             result.AppendLine("m_Name: " + m_Name.ToString());
             result.AppendLine("frooxEngineSlot: " + frooxEngineSlot.ToString());
+            result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
+            result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
 
             return result.ToString();
         }

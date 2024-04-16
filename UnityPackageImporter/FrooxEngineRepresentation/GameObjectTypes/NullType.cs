@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Leap.Unity;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,7 +13,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public bool instanciated { get; set; }
         public ulong id { get; set; }
         public SourceObj m_CorrespondingSourceObject { get; set; }
-        public ulong m_PrefabInstance { get; set; }
+        public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
         //who cares. we're just doing this to implement the interface and all we're doing is shoving in a message.
 #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
@@ -33,7 +34,10 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             StringBuilder result = new StringBuilder();
             result.AppendLine("id: " + id.ToString());
             result.AppendLine("instanciated: " + instanciated.ToString());
+            result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
+            result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
             result.AppendLine("Null type is not a valid type. This is all the info it has on it above.");
+
 
 
             return result.ToString();

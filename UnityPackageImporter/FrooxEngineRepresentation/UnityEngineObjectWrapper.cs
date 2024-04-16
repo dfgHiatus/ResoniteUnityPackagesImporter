@@ -60,6 +60,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public Transform Transform;
         public NullType NullType;
         public SkinnedMeshRenderer SkinnedMeshRenderer;
+        public PrefabInstance PrefabInstance;
 
 
         public UnityEngineObjectWrapper()
@@ -74,7 +75,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
                 GameObject,
                 Component,
                 Transform,
-                SkinnedMeshRenderer
+                SkinnedMeshRenderer,
+                PrefabInstance
             }.Find(i => i != null);
 
             if(returned != null) {

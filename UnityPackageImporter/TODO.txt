@@ -1,0 +1,9 @@
+Things that need to be done:
+files imported like FBX's through the scene importer need to have their IK set up like the prefabs <- this needs to be generalized. Scene Prefabs and Prefabs need to go through the same humanoid stuff.
+Prefab "m_Modifications" in scene files need to be yaml parsed and applied to their imported FBX <- almost done
+Prefab and scene object import scalings need to be predictable and not shit
+Materials need to import their images and settings properly
+IUnityObjects in the scene need to recognize which prefab instances they belong to
+Prefabs need to not assume they are humanoid, and need to have data validation for such.
+Things that could be done:
+adding VRC menus/toggles

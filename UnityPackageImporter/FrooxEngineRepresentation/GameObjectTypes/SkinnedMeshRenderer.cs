@@ -1,4 +1,5 @@
 ﻿using FrooxEngine;
+using Leap.Unity;
 using Microsoft.Cci;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityPackageImporter.Models;
+using static Oculus.Avatar.CAPI;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -25,7 +27,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public FrooxEngine.SkinnedMeshRenderer createdMeshRenderer;
         public GameObject parentobj;
         public SourceObj m_CorrespondingSourceObject { get; set; }
-        public ulong m_PrefabInstance { get; set; }
+        public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
         public AABB m_AABB;
 
@@ -120,6 +122,18 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             {
 
             }
+        }
+
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder();
+            result.AppendLine("id: " + id.ToString());
+            result.AppendLine("instanciated: " + instanciated.ToString());
+            result.AppendLine("parentobj: " + parentobj.ToString());
+            result.AppendLine("createdMeshRenderer" + createdMeshRenderer.ToString());
+            result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
+            result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
+            return base.ToString();
         }
     }
 }

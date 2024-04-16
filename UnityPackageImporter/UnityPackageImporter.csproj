@@ -99,14 +99,17 @@
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Transform.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\GameObject.cs" />
     <Compile Include="Models\FileImportHelperTaskMaterial.cs" />
+    <Compile Include="Models\FileImportTaskScene.cs" />
     <Compile Include="Models\ImportMeshTask.cs" />
     <Compile Include="Models\MetaDataFile.cs" />
     <Compile Include="Models\FileImportTask.cs" />
+    <Compile Include="Models\UnityStructureImporter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TarTarSource.cs" />
     <Compile Include="UnityPackageExtractor.cs" />
     <Compile Include="UnityPackageImporter.cs" />
     <Compile Include="Utils.cs" />
+    <Compile Include="XXHash.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
