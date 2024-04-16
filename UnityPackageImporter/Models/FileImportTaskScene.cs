@@ -14,13 +14,18 @@ using static FrooxEngine.ModelImporter;
 using System.Diagnostics;
 using UnityEngine.SceneManagement;
 using MonoMod.Utils;
+using HashDepot;
+using UnityPackageImporter.FrooxEngineRepresentation;
+using UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
+using UnityEngine.VR;
+using uOSC;
 
 namespace UnityPackageImporter.Models
 {
     public class FileImportTaskScene
     {
         public ModelImportData data;
-        public Dictionary<ulong, Slot> FILEID_To_Slot_Pairs = new Dictionary<ulong, Slot>();
+        public Dictionary<SourceObj, IUnityObject> FILEID_To_Slot_Pairs = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
         public string file;
         private UnityStructureImporter importer;
         public string assetID;
@@ -63,7 +68,7 @@ namespace UnityPackageImporter.Models
             assimpContext.SetConfig(new NormalSmoothingAngleConfig(66f));
             assimpContext.SetConfig(new TangentSmoothingAngleConfig(10f));
             PostProcessSteps postProcessSteps = PostProcessSteps.JoinIdenticalVertices | PostProcessSteps.ImproveCacheLocality | PostProcessSteps.PopulateArmatureData | PostProcessSteps.GenerateUVCoords | PostProcessSteps.FindInstances | PostProcessSteps.FlipWindingOrder;
-            Scene scene = null;
+            Assimp.Scene scene = null;
 
             UnityPackageImporter.Msg("Start assimp file import for file \"" + file+ "\" If your log stops here, then Assimp crashed like a drunk man and took the game with it.\"");
             FrooxEngineBootstrap.LogStream.Flush();
@@ -92,28 +97,63 @@ namespace UnityPackageImporter.Models
             Context.WaitFor(ImportNode(scene.RootNode, targetSlot, data));
             UnityPackageImporter.Msg("Finished task for file " + file);
             this.FinishedFileSlot = data.TryGetSlot(scene.RootNode); //get the slot in case it was dumped beside a bunch of others.
-            FILEID_To_Slot_Pairs = RecusiveFileIDSlotFinder(scene.RootNode);
+            FILEID_To_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(this.data, scene.RootNode, this.FinishedFileSlot, this.assetID));
+            foreach(FrooxEngine.SkinnedMeshRenderer mesh in this.data.skinnedRenderers)
+            {
+                string calculatedpath = FindSlotPath(mesh.Slot, this.FinishedFileSlot);
+                long Calculated_fileid = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(("/" + calculatedpath + "/SkinnedMeshRenderer0")));
+                Console.WriteLine($"{Calculated_fileid} was made from SkinnedMeshRenderer with a slot \"{mesh.Slot.Name}\" with path \"{calculatedpath}\"");
+                FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer skinnedrenderer = new FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer();
+                skinnedrenderer.createdMeshRenderer = mesh;
+
+                SourceObj identifier = new SourceObj();
+                identifier.fileID = Calculated_fileid;
+                identifier.guid = this.assetID;
+                FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
+            }
+
             this.running = false;
         }
 
-        public static Dictionary<ulong, Slot> RecusiveFileIDSlotFinder(ModelImportData data, Node root)
+        //asset id is optional. it's for my convenience.
+        public static Dictionary<SourceObj, IUnityObject> RecusiveFileIDSlotFinder(ModelImportData data, Node root, Slot SceneRoot, string assetID)
         {
-            Dictionary<ulong, Slot> FILEID_into_Slot_Pairs = new Dictionary<ulong, Slot>();
+            Dictionary<SourceObj, IUnityObject> FILEID_into_Slot_Pairs = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
 
             Slot curnode = data.TryGetSlot(root);
 
-            XxHash64 _xhash32 = new XxHash64();
-            var bytes = Encoding.UTF8.GetBytes("Type:GameObject->//RootNode/root/FemaleClothesNoSocks0");
-            var stream = new MemoryStream(bytes);
-            _xhash32.Append(stream);
-            ulong hashBytes = _xhash32.GetCurrentHashAsUInt64();
-            Console.WriteLine((long)hashBytes);
-            FILEID_into_Slot_Pairs.Add(curnode.Name);
+            string calculatedpath = FindSlotPath(curnode, SceneRoot);
+
+            string gameobjpath = "/" + calculatedpath + "0";
+
+            long Calculated_fileid = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(gameobjpath));
+           
+            Console.WriteLine($"{Calculated_fileid} was made from slot \"{curnode.Name}\" with path \"{gameobjpath}\"");
+            GameObject calclatedobj = new GameObject();
+            calclatedobj.instanciated = true;
+            calclatedobj.frooxEngineSlot = curnode;
+
+            SourceObj identifier1 = new SourceObj();
+            identifier1.fileID = Calculated_fileid;
+            identifier1.guid = assetID;
+
+            FILEID_into_Slot_Pairs.Add(identifier1, calclatedobj);
+            string transformpath = "/" + calculatedpath + "/Transform0";
+
+            long Calculated_fileidtransform = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(transformpath));
+            FrooxEngineRepresentation.GameObjectTypes.Transform calclatedTransformobj = new FrooxEngineRepresentation.GameObjectTypes.Transform();
+            Console.WriteLine($"{Calculated_fileidtransform} was made from slot \"{curnode.Name}\" with path \"{transformpath}\"");
+            calclatedTransformobj.instanciated = true;
+
+            SourceObj identifier2 = new SourceObj();
+            identifier2.fileID = Calculated_fileidtransform;
+            identifier2.guid = assetID;
+            FILEID_into_Slot_Pairs.Add(identifier2, calclatedTransformobj);
             if (root.ChildCount > 0)
             {
                 foreach(Node child in root.Children)
                 {
-                    FILEID_into_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(data, child));
+                    FILEID_into_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(data, child, SceneRoot, assetID));
                 }
                 
             }
@@ -122,7 +162,35 @@ namespace UnityPackageImporter.Models
         }
 
 
+        public static string FindSlotPath(Slot child, Slot StopAt)
+        {
+            if(child == null || StopAt == null)
+            {
+                return string.Empty;
+            }
+            else
+            {
+                if(child.IsChildOf(StopAt))
+                {
+                    return FindSlotPathRecursive(child, StopAt, child.Name);
 
+                }
+                else
+                {
+                    return string.Empty;
+                }
+            }
+
+        }
+
+        private static string FindSlotPathRecursive(Slot child, Slot StopAt, string curpath)
+        {
+            string path = "/"+child.Parent+"/" + curpath;
+            if(child.Parent == StopAt){
+                return path;
+            }
+            return FindSlotPathRecursive(child, StopAt, path);
+        }
 
 
 

@@ -4,6 +4,7 @@ using FrooxEngine;
 using FrooxEngine.FinalIK;
 using FrooxEngine.ProtoFlux;
 using HarmonyLib;
+using MonoMod.Utils;
 using ResoniteModLoader;
 using System;
 using System.Collections.Generic;
@@ -44,7 +45,7 @@ namespace UnityPackageImporter
         public List<string> files;
         public Slot root;
         public Dictionary<ulong, IUnityObject> unityprefabimports = new Dictionary<ulong, IUnityObject>();
-        public Dictionary<ulong, IUnityObject> unitysceneimports = new Dictionary<ulong, IUnityObject>();
+        
         public Dictionary<string, string> ListOfPrefabs;
 
 
@@ -88,12 +89,17 @@ namespace UnityPackageImporter
 
                 UnityPackageImporter.Msg("End scene import");
             }
+            UnityPackageImporter.Msg("All finished!");
         }
 
         private async Task LoadSceneUnity(KeyValuePair<string, string> SceneID)
         {
             await default(ToWorld);
             var SceneSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(SceneID.Value));
+            //important to reset.
+            Dictionary<ulong, IUnityObject> unitysceneimports = new Dictionary<ulong, IUnityObject>();
+            
+            Dictionary<SourceObj, IUnityObject> unitysceneimportsPrefabs = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
             SceneSlot.SetParent(this.root, false);
             await default(ToBackground);
             //begin the parsing of our prefabs.
@@ -160,18 +166,37 @@ namespace UnityPackageImporter
                 {
                     this.importedFBXScenes.Add(obj.Value.m_CorrespondingSourceObject.guid);
                     UnityPackageImporter.Debug("now importing \"" + this.AssetIDDict[obj.Value.m_CorrespondingSourceObject.guid] + "\" for the scene +\""+ SceneID.Value + "\"!");
-                    await new FileImportTaskScene(SceneSlot, obj.Value.m_CorrespondingSourceObject.guid, this, this.AssetIDDict[obj.Value.m_CorrespondingSourceObject.guid]).runnerWrapper();
+                    FileImportTaskScene importtask = new FileImportTaskScene(SceneSlot, obj.Value.m_CorrespondingSourceObject.guid, this, this.AssetIDDict[obj.Value.m_CorrespondingSourceObject.guid]);
+                    await importtask.runnerWrapper();
+                    unitysceneimportsPrefabs.AddRange(importtask.FILEID_To_Slot_Pairs);
                 }
             }
 
-            //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
-
+            //instanciate our objects to generate our prefab entirely, using the file ids and scene file ids we assigned ealier to identify our prefab elements in our list.
             await default(ToWorld);
+            Dictionary<ulong, IUnityObject> unitysceneimportsScenenew = new Dictionary<ulong, IUnityObject>();
             foreach (var obj in unitysceneimports)
             {
-                await obj.Value.instanciateAsync(unitysceneimports, this);
+                //replace the IUnityObjects which we already instanciated the slots and components for through the FBX importer. This way, any IUnityObject created by deserialization that was instanciated through the FBX instead isn't instanciated again through the prefab hiearchy generator.
+
+                if (unitysceneimportsPrefabs.ContainsKey(obj.Value.m_CorrespondingSourceObject))
+                {
+                    unitysceneimportsScenenew.Add(obj.Key, unitysceneimportsPrefabs[obj.Value.m_CorrespondingSourceObject]);
+                }
+                else
+                {
+                    await obj.Value.instanciateAsync(unitysceneimports, this);
+                    unitysceneimportsScenenew.Add(obj.Key, obj.Value);
+                }
+                
+                
                 debugScene.Append(obj.Value.ToString());
             }
+            //make all our imported stuff back into one array
+            unityprefabimports.Clear();
+            unityprefabimports.AddRange(unitysceneimportsScenenew);
+
+
             await default(ToBackground);
 
             List<IUnityObject> destroythese = new List<IUnityObject>();
