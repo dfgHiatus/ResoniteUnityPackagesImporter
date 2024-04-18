@@ -56,13 +56,13 @@ namespace UnityPackageImporter
         public async Task startImports()
         {
             await default(ToBackground);
-            UnityPackageImporter.Msg("Start Prefab Importing unitypackage");
+            UnityPackageImporter.Msg("Start Project Importing for unitypackage");
 
 
             //I feel so smart making the wait all import fbx tasks code. - @989onan
-            
-            Task.WaitAll(fillFBXFiles().ToArray());
-            
+            await default(ToWorld);
+            await Task.WhenAll(fillFBXFiles().Select(task => task.runnerWrapper()).ToArray());
+            await default(ToBackground);
             //now we have a full list of meta files and prefabs regarding this import file list from our prefix (where ever this is even if not a unity package folder) we now begin the hard part
             // *drums* making the files go onto the model! 
 
@@ -72,24 +72,26 @@ namespace UnityPackageImporter
             {
 
                 UnityPackageImporter.Msg("Start prefab import");
+                await default(ToWorld);
                 unityImportTasks.Add(new UnityPrefabImportTask(root, Prefab));
-
+                await default(ToBackground);
                 UnityPackageImporter.Msg("End prefab import");
             }
             UnityPackageImporter.Msg("end Prefab Importing patch unitypackage, starting on scenes");
             foreach(var Scene in this.ListOfUnityScenes)
             {
                 UnityPackageImporter.Msg("Start scene import");
-
+                await default(ToWorld);
                 unityImportTasks.Add(new UnitySceneImportTask(root, Scene));
+                await default(ToBackground);
 
                 UnityPackageImporter.Msg("End scene import");
             }
-
+            await default(ToWorld);
             await Task.WhenAll(unityImportTasks.Select(task => task.StartImport()));
+            await default(ToBackground);
 
-
-            foreach(FileImportTaskScene obj in this.SharedImportedFBXScenes.Values)
+            foreach (FileImportTaskScene obj in this.SharedImportedFBXScenes.Values)
             {
                 obj.FinishedFileSlot.Destroy();
             }
@@ -100,20 +102,20 @@ namespace UnityPackageImporter
         }
 
 
-        private IEnumerable<Task> fillFBXFiles()
+        private IEnumerable<FileImportTaskScene> fillFBXFiles()
         {
 
             foreach(KeyValuePair<string,string> pair in AssetIDDict)
             {
                 string[] filename = pair.Value.Split('.');
-                if(new string[]{"fbx"}.Contains(filename[filename.Length-2].ToLower())){
+                if(new string[]{"fbx"}.Contains(filename[filename.Length-1].ToLower())){
 
                     if (!SharedImportedFBXScenes.ContainsKey(pair.key))
                     {
                         UnityPackageImporter.Debug("now importing \"" + pair.Value + "\" for later use by prefabs and scenes!");
                         FileImportTaskScene importtask = new FileImportTaskScene(this.root, pair.key, this, this.AssetIDDict[pair.key]);
-                        yield return importtask.runnerWrapper();
                         this.SharedImportedFBXScenes.Add(pair.key, importtask);
+                        yield return importtask;
                     }
                 }
 

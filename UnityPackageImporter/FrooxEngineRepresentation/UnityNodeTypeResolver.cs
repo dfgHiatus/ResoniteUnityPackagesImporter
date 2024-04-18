@@ -12,7 +12,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
     class UnityNodeTypeResolver : INodeTypeResolver
     {
         private const string UnityTagPrefix = "tag:unity3d.com,2011:";
-        public static ulong anchor = 0; //this is referenced externally after every node parse, in the UnityStructureImporter class
+        public ulong anchor = 0; //this is referenced externally after every node parse, in the UnityStructureImporter class
         public bool Resolve(NodeEvent nodeEvent, ref Type currentType)
         {
             if (nodeEvent.Tag != null && nodeEvent.Tag.Value.StartsWith(UnityTagPrefix))
@@ -21,8 +21,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 
                 if (!int.TryParse(nodeEvent.Tag.Value.Replace(UnityTagPrefix, ""), out unityObjectId))
                     return false;
-
-                anchor = ulong.Parse(nodeEvent.Anchor.Value.Split(' ')[0]);
+                anchor = ulong.Parse(nodeEvent.Anchor.Value.Replace("stripped", "").Trim());
                 currentType = typeof(UnityEngineObjectWrapper);
                 return true;
 

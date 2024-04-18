@@ -71,12 +71,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public IUnityObject Result()
         {
             IUnityObject returned = new List<IUnityObject>(){
-                NullType,
+                PrefabInstance,
                 GameObject,
                 Component,
                 Transform,
                 SkinnedMeshRenderer,
-                PrefabInstance
+                NullType
             }.Find(i => i != null);
 
             if(returned != null) {

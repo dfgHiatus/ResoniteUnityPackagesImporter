@@ -1,5 +1,6 @@
 ﻿using FrooxEngine;
 using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,6 +11,7 @@ using UnityPackageImporter.Models;
 using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace UnityPackageImporter.Models
 {
@@ -34,28 +36,54 @@ namespace UnityPackageImporter.Models
 
         public async Task StartImport()
         {
+            existingIUnityObjects = new Dictionary<ulong, IUnityObject>();
             await default(ToWorld);
 
             this.CurrentStructureRootSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(ID.Value));
-            CurrentStructureRootSlot.SetParent(this.allimportsroot, false);
+            UnityPackageImporter.Msg("Current slot for scene import is: ");
+            UnityPackageImporter.Msg(CurrentStructureRootSlot.ToString());
+            this.CurrentStructureRootSlot.SetParent(this.allimportsroot, false);
             await default(ToBackground);
 
+
+
+            //we first have to remove "stripped" since those cause yaml parsing errors
+            string[] initialstream = File.ReadAllLines(ID.Value);
+            string[] newcontent = new string[initialstream.Length];
+            for(int i=0;i<initialstream.Length;i++)
+            {
+                string line = initialstream[i];
+                newcontent[i] = line;
+                if (line.StartsWith("--- !u!"))
+                {
+                    newcontent[i] = newcontent[i].Replace(" stripped", "");
+
+                }
+            }
+            File.WriteAllLines(ID.Value, newcontent);
 
 
 
 
             using var sr = File.OpenText(ID.Value);
 
-            var deserializer = new DeserializerBuilder().WithNodeTypeResolver(new UnityNodeTypeResolver()).IgnoreUnmatchedProperties().Build();
+            UnityNodeTypeResolver noderesolver = new UnityNodeTypeResolver();
+
+            var deserializer = new DeserializerBuilder().WithNodeTypeResolver(noderesolver)
+                .IgnoreUnmatchedProperties()
+                .WithNamingConvention(NullNamingConvention.Instance)//outta here with that crappy conversion!!!! We got unity crap we deal with unity crap. - @989onan
+                .Build();
 
             var parser = new Parser(sr);
 
             StringBuilder debugScene = new StringBuilder();
             parser.Consume<StreamStart>();
             DocumentStart variable;
+            //begin the parsing of our scenes.
+
             //parse loop
             //now using the power of yaml we can make this a bit more reliable and hopefully smaller.
-            //reading unity prefabs as yaml allows us to much more easily obtain the data we need.
+            //reading unity scenes as yaml allows us to much more easily obtain the data we need.
             //Unity yamls are different, but with a little trickery we can still read them with a library.
             while (parser.Accept<DocumentStart>(out variable) == true)
             {
@@ -64,7 +92,7 @@ namespace UnityPackageImporter.Models
                 {
                     UnityEngineObjectWrapper docWrapped = deserializer.Deserialize<UnityEngineObjectWrapper>(parser);
                     IUnityObject doc = docWrapped.Result();
-                    doc.id = UnityNodeTypeResolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
+                    doc.id = noderesolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
                     //since deserializing happens before adding to the list and those are done syncronously with each other, it is fine.
                     existingIUnityObjects.Add(doc.id, doc);
                 }
@@ -75,7 +103,7 @@ namespace UnityPackageImporter.Models
                     try
                     {
                         IUnityObject doc = new FrooxEngineRepresentation.GameObjectTypes.NullType();
-                        doc.id = UnityNodeTypeResolver.anchor;
+                        doc.id = noderesolver.anchor;
                         existingIUnityObjects.Add(doc.id, doc);
                     }
                     catch (ArgumentException e2)
@@ -99,14 +127,25 @@ namespace UnityPackageImporter.Models
             await default(ToWorld);
             foreach (var obj in existingIUnityObjects)
             {
-                if(obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.PrefabInstance)){
-                    await obj.Value.instanciateAsync(this);
-                    debugScene.Append(obj.Value.ToString());
+                if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.PrefabInstance))
+                {
+                    try
+                    {
+                        await obj.Value.instanciateAsync(this);
+                        debugScene.Append(obj.Value.ToString());
+                    }
+                    catch (Exception e)
+                    {
+                        UnityPackageImporter.Warn("Prefab failed to instanciate!");
+                        UnityPackageImporter.Msg("Prefab ID: \"" + obj.Value.id.ToString() + "\"");
+                        throw e;
+                    }
                 }
+                
             }
             await default(ToBackground);
 
-
+            UnityPackageImporter.Msg("Loaded all prefabs for scene \"" + ID.Value + "\"");
 
             //instanciate everything else.
             await default(ToWorld);

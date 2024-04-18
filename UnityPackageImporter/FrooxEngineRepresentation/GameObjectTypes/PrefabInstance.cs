@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityPackageImporter.Models;
 using YamlDotNet.Core.Tokens;
+using YamlDotNet.Serialization;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -19,11 +20,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
     {
         public bool instanciated { get; set; }
         public ulong id { get; set; }
+
         public SourceObj m_CorrespondingSourceObject { get; set; }
 
-        public GameObject ImportRoot { get; set; } 
-
+        public GameObject ImportRoot { get; set; }
         public ModificationRoot m_Modification { get; set; }
+
         public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
         public Dictionary<SourceObj, IUnityObject> PrefabHashes = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
@@ -33,6 +35,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         {
             if (!instanciated)
             {
+                UnityPackageImporter.Msg("is m_CorrespondingSourceObject instanciated?: " + (m_CorrespondingSourceObject == null));
+                UnityPackageImporter.Msg("is m_Modification instanciated?: " + (m_Modification == null));
                 if (importer.unityProjectImporter.AssetIDDict.ContainsKey(m_CorrespondingSourceObject.guid))
                 {
                     //find FBX's in our scene that need importing, so we can import them and then attach our prefab objects to it.
@@ -42,12 +46,14 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     Slot targetParent;
                     if(importer.existingIUnityObjects.TryGetValue(m_Modification.m_TransformParent["fileID"], out IUnityObject foundobjectparent))
                     {
+                        await foundobjectparent.instanciateAsync(importer);
                         targetParent = (foundobjectparent as GameObject).frooxEngineSlot;
                     }
                     else
                     {
                         targetParent = importer.CurrentStructureRootSlot;
                     }
+                    UnityPackageImporter.Msg("is targetParent instanciated?: " + (targetParent == null));
                     await default(ToWorld);
                     ImportRoot.frooxEngineSlot = importer.unityProjectImporter.SharedImportedFBXScenes[m_CorrespondingSourceObject.guid].FinishedFileSlot.Duplicate();
                     ImportRoot.frooxEngineSlot.SetParent(targetParent);
@@ -57,7 +63,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                     foreach(Modification mod in m_Modification.m_Modifications)
                     {
-                        if(this.PrefabHashes.TryGetValue(mod.target, out IUnityObject targetobj)){
+                        UnityPackageImporter.Msg("is mod instanciated?: " + (mod == null));
+                        if (this.PrefabHashes.TryGetValue(mod.target, out IUnityObject targetobj)){
 
                             
                             Type targettype = targetobj.GetType();
@@ -120,9 +127,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();
-            result.AppendLine("id: " + id.ToString());
-            result.AppendLine("instanciated: " + instanciated.ToString());
-            result.AppendLine("m_CorrespondingSourceObject: " + m_CorrespondingSourceObject.ToString());
             result.AppendLine("m_Modification: " + m_Modification.ToString());
             result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToString());
 
@@ -141,7 +145,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public SourceObj target;
         public string propertyPath;
         public string value;
-        public int objectReference;
+        public Dictionary<string, string> objectReference;
 
         public override string ToString()
         {
@@ -149,7 +153,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             result.AppendLine("target: " + target.ToString());
             result.AppendLine("propertyPath: " + propertyPath.ToString());
             result.AppendLine("value: " + value.ToString());
-            result.AppendLine("objectReference: " + objectReference.ToString());
+            result.AppendLine("objectReference: " + objectReference.ToString()); //same here - @989onan
 
             return result.ToString();
         }
@@ -159,12 +163,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
     {
         public Dictionary<string, ulong> m_TransformParent;
         public List<Modification> m_Modifications;
-
+        public List<string> m_RemovedComponents;
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();
-            result.AppendLine("m_TransformParent: " + m_TransformParent.ToArrayString());
-            result.AppendLine("m_Modifications: " + m_Modifications.ToArrayString());
+            result.AppendLine("m_TransformParent: " + m_TransformParent.ToString());
+            result.AppendLine("m_Modifications: " + m_Modifications.ToString());
             return result.ToString();
         }
     }

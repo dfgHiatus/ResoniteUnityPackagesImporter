@@ -22,9 +22,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 
     public class SourceObj
     {
-        public long fileID;
-        public string guid;
-        public int type;
+        public long fileID { get; set; }
+        public string guid { get; set; }
+        public int type { get; set; }
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();

@@ -1,26 +1,16 @@
 ﻿using Assimp;
 using Assimp.Configs;
-using Elements.Core;
 using FrooxEngine;
-using UnityFrooxEngineRunner;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Text;
 using static FrooxEngine.ModelImporter;
-using System.Diagnostics;
-using UnityEngine.SceneManagement;
 using MonoMod.Utils;
 using HashDepot;
 using UnityPackageImporter.FrooxEngineRepresentation;
-using UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
-using UnityEngine.VR;
-using uOSC;
-using UnityEngine;
-using Elements.Assets;
+using System.Linq;
 
 namespace UnityPackageImporter.Models
 {
@@ -31,6 +21,7 @@ namespace UnityPackageImporter.Models
         public string file;
         private UnityProjectImporter importer;
         public string assetID;
+        public Slot importTaskAssetSlot;
         public bool import_finished = false;
 
         Slot targetSlot;
@@ -44,7 +35,9 @@ namespace UnityPackageImporter.Models
             this.targetSlot = targetSlot;
             this.file = file;
             this.importer = importer;
-            
+            this.importTaskAssetSlot = importer.importTaskAssetRoot.AddSlot("Assets - "+Path.GetFileName(file));
+
+
             this.assetID = assetID;
         }
 
@@ -69,7 +62,7 @@ namespace UnityPackageImporter.Models
             assimpContext.Scale = 0.01f; //TODO: Grab file's scale from metadata
             assimpContext.SetConfig(new NormalSmoothingAngleConfig(66f));
             assimpContext.SetConfig(new TangentSmoothingAngleConfig(10f));
-            PostProcessSteps postProcessSteps = PostProcessSteps.JoinIdenticalVertices | PostProcessSteps.ImproveCacheLocality | PostProcessSteps.PopulateArmatureData | PostProcessSteps.GenerateUVCoords | PostProcessSteps.FindInstances | PostProcessSteps.FlipWindingOrder;
+            PostProcessSteps postProcessSteps = PostProcessSteps.JoinIdenticalVertices | PostProcessSteps.ImproveCacheLocality | PostProcessSteps.PopulateArmatureData | PostProcessSteps.GenerateUVCoords | PostProcessSteps.FindInstances | PostProcessSteps.FlipWindingOrder | PostProcessSteps.LimitBoneWeights;
             Assimp.Scene scene = null;
 
             UnityPackageImporter.Msg("Start assimp file import for file \"" + file+ "\" If your log stops here, then Assimp crashed like a drunk man and took the game with it.\"");
@@ -94,18 +87,33 @@ namespace UnityPackageImporter.Models
             FrooxEngineBootstrap.LogStream.Flush();
             PreprocessScene(scene);
             UnityPackageImporter.Msg("making model import data for file: " + file);
-            this.data = new ModelImportData(file, scene, this.targetSlot, importer.importTaskAssetRoot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
+            
+            this.data = new ModelImportData(file, scene, this.targetSlot, this.importTaskAssetSlot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
             UnityPackageImporter.Msg("importing node into froox engine, file: " + file);
-            Context.WaitFor(ImportNode(scene.RootNode, targetSlot, data));
-            UnityPackageImporter.Msg("Finished task for file " + file);
-            this.FinishedFileSlot = data.TryGetSlot(scene.RootNode); //get the slot in case it was dumped beside a bunch of others.
-            FILEID_To_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(this.data, scene.RootNode, this.FinishedFileSlot, this.assetID));
-           
+            FrooxEngineBootstrap.LogStream.Flush();
+
+            await Task.WhenAll(ImportNodeAsync(scene.RootNode, targetSlot, data));
+
+            UnityPackageImporter.Msg("retrieving scene root for file: " + file);
+            FrooxEngineBootstrap.LogStream.Flush();
+            this.FinishedFileSlot = data.TryGetSlot(scene.RootNode); //get the slot by the import data to make sure we have what we imported.
+            UnityPackageImporter.Msg("recurisively searching for slots in file: " + file);
+            FrooxEngineBootstrap.LogStream.Flush();
+
+
+            //find each child slot of the whole thing
+            foreach(Node childofroot in scene.RootNode.Children)
+            {
+                FILEID_To_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(this.data, childofroot, data.TryGetSlot(childofroot), this.assetID));
+            }
+            
+
+            
             foreach(FrooxEngine.SkinnedMeshRenderer mesh in this.data.skinnedRenderers)
             {
-                string calculatedpath = FindSlotPath(mesh.Slot, this.FinishedFileSlot);
-                long Calculated_fileid = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(("/" + calculatedpath + "/SkinnedMeshRenderer0")));
-                Console.WriteLine($"{Calculated_fileid} was made from SkinnedMeshRenderer with a slot \"{mesh.Slot.Name}\" with path \"{calculatedpath}\"");
+                string calculatedpath = "Type:SkinnedMeshRenderer->//RootNode/root/" + mesh.Slot.Name + "/SkinnedMeshRenderer0";//we are assuming all meshes are under the RootNode assimp makes.
+                long Calculated_fileid = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(calculatedpath));
+                UnityPackageImporter.Msg($"{Calculated_fileid} was made from SkinnedMeshRenderer with a slot \"{mesh.Slot.Name}\" with path \"{calculatedpath}\"");
                 FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer skinnedrenderer = new FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer();
                 skinnedrenderer.createdMeshRenderer = mesh;
 
@@ -113,7 +121,6 @@ namespace UnityPackageImporter.Models
                 while (!mesh.Mesh.IsAssetAvailable)
                 {
                     await default(NextUpdate);
-                    await Task.Delay(1000);
                     UnityPackageImporter.Msg("Waiting for mesh assets for: \"" + mesh.Slot.Name + "\"");
                 }
                 await default(ToWorld);
@@ -127,31 +134,48 @@ namespace UnityPackageImporter.Models
 
 
 
-            
 
 
-            
-
-            
 
 
+
+
+
+            UnityPackageImporter.Msg("Finished task for file " + file);
             this.running = false;
         }
 
-        //asset id is optional. it's for my convenience.
-        public static Dictionary<SourceObj, IUnityObject> RecusiveFileIDSlotFinder(ModelImportData data, Node root, Slot SceneRoot, string assetID)
+
+        private static Task ImportNodeAsync(Node node, Slot targetSlot, ModelImportData data)
         {
+            TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
+            targetSlot.StartCoroutine(ImportNodeWrapper(node, targetSlot, data, taskCompletionSource));
+            return taskCompletionSource.Task;
+        }
+
+        private static IEnumerator<Context> ImportNodeWrapper(Node node, Slot targetSlot, ModelImportData data, TaskCompletionSource<bool> completion = null)
+        {
+            yield return Context.WaitFor(ImportNode(node, targetSlot, data));
+            completion.SetResult(result: true);
+        }
+
+        public static Dictionary<SourceObj, IUnityObject> RecusiveFileIDSlotFinder(ModelImportData data2, Node root, Slot SceneRoot, string assetID)
+        {
+            UnityPackageImporter.Msg($"checking slot \"{root.Name}\"");
+            FrooxEngineBootstrap.LogStream.Flush();
+
             Dictionary<SourceObj, IUnityObject> FILEID_into_Slot_Pairs = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
 
-            Slot curnode = data.TryGetSlot(root);
+            Slot curnode = data2.TryGetSlot(root);
 
             string calculatedpath = FindSlotPath(curnode, SceneRoot);
 
-            string gameobjpath = "/" + calculatedpath + "0";
+            string gameobjpath = "Type:GameObject->//RootNode/root" + calculatedpath + "0";
 
             long Calculated_fileid = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(gameobjpath));
-           
-            Console.WriteLine($"{Calculated_fileid} was made from slot \"{curnode.Name}\" with path \"{gameobjpath}\"");
+
+            UnityPackageImporter.Msg($"{Calculated_fileid} was made from slot \"{curnode.Name}\" with path \"{gameobjpath}\"");
+            FrooxEngineBootstrap.LogStream.Flush();
             FrooxEngineRepresentation.GameObjectTypes.GameObject calclatedobj = new FrooxEngineRepresentation.GameObjectTypes.GameObject();
             calclatedobj.instanciated = true;
             calclatedobj.frooxEngineSlot = curnode;
@@ -161,13 +185,13 @@ namespace UnityPackageImporter.Models
             identifier1.guid = assetID;
 
             FILEID_into_Slot_Pairs.Add(identifier1, calclatedobj);
-            string transformpath = "/" + calculatedpath + "/Transform0";
+            string transformpath = "Type:Transform->//RootNode/root" + calculatedpath + "/Transform0";
 
             long Calculated_fileidtransform = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(transformpath));
             FrooxEngineRepresentation.GameObjectTypes.Transform calclatedTransformobj = new FrooxEngineRepresentation.GameObjectTypes.Transform();
             calclatedTransformobj.parentHashedGameObj = calclatedobj;
 
-            Console.WriteLine($"{Calculated_fileidtransform} was made from slot \"{curnode.Name}\" with path \"{transformpath}\"");
+            UnityPackageImporter.Msg($"{Calculated_fileidtransform} was made from transform \"{curnode.Name}\" with path \"{transformpath}\"");
 
             SourceObj identifier2 = new SourceObj();
             identifier2.fileID = Calculated_fileidtransform;
@@ -177,7 +201,7 @@ namespace UnityPackageImporter.Models
             {
                 foreach(Node child in root.Children)
                 {
-                    FILEID_into_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(data, child, SceneRoot, assetID));
+                    FILEID_into_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(data2, child, SceneRoot, assetID));
                 }
                 
             }
@@ -196,12 +220,12 @@ namespace UnityPackageImporter.Models
             {
                 if(child.IsChildOf(StopAt))
                 {
-                    return FindSlotPathRecursive(child, StopAt, child.Name);
+                    return FindSlotPathRecursive(child, StopAt, "/"+child.Name);
 
                 }
                 else
                 {
-                    return string.Empty;
+                    return "/" + child.Name;
                 }
             }
 
@@ -209,11 +233,11 @@ namespace UnityPackageImporter.Models
 
         private static string FindSlotPathRecursive(Slot child, Slot StopAt, string curpath)
         {
-            string path = "/"+child.Parent+"/" + curpath;
+            string path = "/"+child.Parent.Name + curpath;
             if(child.Parent == StopAt){
                 return path;
             }
-            return FindSlotPathRecursive(child, StopAt, path);
+            return FindSlotPathRecursive(child.Parent, StopAt, path);
         }
 
 

@@ -26,7 +26,6 @@ public class UnityPackageImporter : ResoniteMod
     internal const string UNITY_PREFAB_EXTENSION = ".prefab";
     internal const string UNITY_SCENE_EXTENSION = ".unity";
     internal const string UNITY_META_EXTENSION = ".meta";
-    internal const string TEMP_ORPHAN_NODES_SLOT_NAME = "temp889347298";
 
     internal static ModConfiguration Config;
     internal static string cachePath = Path.Combine(
@@ -138,9 +137,7 @@ public class UnityPackageImporter : ResoniteMod
 
 
             Msg("Start import of unity packages.");
-            var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package Import");
-            slot.PositionInFrontOfUser(null, null, 0.7f, null, false, false, true);
-            slot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
+            
 
 
             foreach (var file in files)
@@ -152,6 +149,9 @@ public class UnityPackageImporter : ResoniteMod
             }
             if(hasUnityPackage.Count > 0)
             {
+                var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package Import");
+                slot.GlobalPosition = new float3(0, 0, 0); //we want scenes to position themselves at 0,0,0. There is an edge case where the thing this is parented under would be moving, but that's just a skill issue on the user's part. - @989onan
+                slot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root. - @989onan
                 slot.StartGlobalTask(async () => await scanfiles(hasUnityPackage, slot));
                 
             }
@@ -161,9 +161,13 @@ public class UnityPackageImporter : ResoniteMod
             //idk if we really need this if the stuff above is going to eventually just import prefabs and textures already set up... - @989onan
 
 
-
+            
             if (hasUnityPackage.Count <= 0) return true;
-            BatchFolderImporter.BatchImport(slot, notUnityPackage, Config.GetValue(importAsRawFiles));
+
+            var slotbatch = Engine.Current.WorldManager.FocusedWorld.AddSlot("Batch Import", false);
+            slotbatch.PositionInFrontOfUser(null, null, 0.7f, null, false, false, true);
+            slotbatch.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
+            BatchFolderImporter.BatchImport(slotbatch, notUnityPackage, Config.GetValue(importAsRawFiles));
             
 
             return false;
