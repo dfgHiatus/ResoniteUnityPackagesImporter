@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using UnityPackageImporter.Models;
+using YamlDotNet.Serialization.ObjectGraphVisitors;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -24,20 +26,43 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         }
 
 
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
+        public async Task instanciateAsync(IUnityStructureImporter importer)
         {
             if (!instanciated)
             {
-                instanciated = true;
+                
                 await default(ToWorld);
-                frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
-                frooxEngineSlot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
-                frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
+                if(m_CorrespondingSourceObject.guid == null)
+                {
+                    frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
+                    frooxEngineSlot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
+                    frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
+                }
+                else
+                {
+                    if(importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject prefab))
+                    {
+                        if((prefab as PrefabInstance).PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject existingobject))
+                        {
+                            this.frooxEngineSlot = (existingobject as GameObject).frooxEngineSlot;
+                            this.instanciated = true;
+                        }
+
+
+
+
+                    }
+
+                }
+
+                
                 await default(ToBackground);
+
+                instanciated = true;
             }
 
-            
         }
+
 
         //a detailed to string for debugging.
         public override string ToString()

@@ -2,6 +2,7 @@
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
+using Leap.Unity;
 using ResoniteModLoader;
 using SkyFrost.Base;
 using System;
@@ -74,9 +75,9 @@ public class UnityPackageImporter : ResoniteMod
         Directory.CreateDirectory(cachePath);
     }
 
-    public static string[] DecomposeUnityPackages(string[] files)
+    public static string[] DecomposeUnityPackage(string file)
     {
-        var fileToHash = files.ToDictionary(file => file, Utils.GenerateMD5);
+        var fileToHash = new Dictionary<string,string>(){ { file, Utils.GenerateMD5(file) } };
         HashSet<string> dirsToImport = new HashSet<string>();
         HashSet<string> unityPackagesToDecompress = new HashSet<string>();
         foreach (var element in fileToHash)
@@ -172,40 +173,40 @@ public class UnityPackageImporter : ResoniteMod
         {
 
 
-
+            List<Task> imports = new List<Task>();
             await default(ToBackground);
-            List<string> scanthesefiles = new List<string>(DecomposeUnityPackages(hasUnityPackage.ToArray()));
-            
-            
-
-            Msg("CALLING FindPrefabsAndMetas");
-            List<string> notprefabsandmetas = FindPrefabsAndMetas(scanthesefiles, out UnityStructureImporter importer).ToList();
-            if (Config.GetValue(dumpPackageContents))
+            foreach(string unitypackage in hasUnityPackage)
             {
-                if (Config.GetValue(ImportPrefab))
+                List<string> scanthesefiles = new List<string>(DecomposeUnityPackage(unitypackage));
+
+
+
+                Msg("CALLING FindPrefabsAndMetas");
+                List<string> notprefabsandmetas = (await FindPrefabsAndMetas(scanthesefiles, slot, imports)).ToList();
+                if (Config.GetValue(dumpPackageContents))
                 {
-                    //get all files that don't have metas
-                    BatchFolderImporter.BatchImport(slot, scanthesefiles.FindAll(i => !Path.GetExtension(i).ToLower().Equals(UNITY_META_EXTENSION)), Config.GetValue(importAsRawFiles));
+                    if (Config.GetValue(ImportPrefab))
+                    {
+                        //get all files that don't have metas
+                        BatchFolderImporter.BatchImport(slot, scanthesefiles.FindAll(i => !Path.GetExtension(i).ToLower().Equals(UNITY_META_EXTENSION)), Config.GetValue(importAsRawFiles));
+                    }
+                    else
+                    {
+                        //bring in no prefabs or metas
+                        BatchFolderImporter.BatchImport(slot, notprefabsandmetas, Config.GetValue(importAsRawFiles));
+                    }
                 }
-                else
-                {
-                    //bring in no prefabs or metas
-                    BatchFolderImporter.BatchImport(slot, notprefabsandmetas, Config.GetValue(importAsRawFiles));
-                }
+                
+
             }
 
             await default(ToWorld);
-            if (Config.GetValue(ImportPrefab))
-            {
-                await importer.startImports(slot, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets"));
-            }
-                
-
+            await Task.WhenAll(imports);
             await default(ToBackground);
             Msg("FINISHED ALL IMPORTS AND DONE WITH ALL TASKS!!");
         }
 
-        private static IEnumerable<string> FindPrefabsAndMetas(IEnumerable<string> files, out UnityStructureImporter importer)
+        private static async Task<IEnumerable<string>> FindPrefabsAndMetas(IEnumerable<string> files, Slot importSlotContainment, List<Task> imports)
         {
             /*DebugMSG*/Msg("Start Finding Prefabs and Metas");
             //remove the meta files from the rest of the code later on in the return statements, since we don't want to let the importer bring in fifty bajillion meta files...
@@ -213,7 +214,7 @@ public class UnityPackageImporter : ResoniteMod
             foreach (var file in files)
             {
                 var ending = Path.GetExtension(file).ToLower();
-                if (!(ending.Equals(UNITY_PREFAB_EXTENSION) || ending.Equals(UNITY_META_EXTENSION)))
+                if (!(ending.Equals(UNITY_PREFAB_EXTENSION) || ending.Equals(UNITY_META_EXTENSION) || ending.Equals(UNITY_SCENE_EXTENSION)))
                 {
                     ListOfNotMetasAndPrefabs.Add(file);
                 }
@@ -245,7 +246,7 @@ public class UnityPackageImporter : ResoniteMod
                         {
                             ListOfPrefabs.Add(fileGUID, filename);
                         }
-                        if (Path.GetExtension(filename).ToLower() == UNITY_SCENE_EXTENSION)//if our meta coorisponds to a prefab
+                        if (Path.GetExtension(filename).ToLower() == UNITY_SCENE_EXTENSION)//if our meta coorisponds to a scene
                         {
                             ListOfUnityScenes.Add(fileGUID, filename);
                         }
@@ -253,8 +254,16 @@ public class UnityPackageImporter : ResoniteMod
                         break;
                 }
             }
-
-            importer = new UnityStructureImporter(files, AssetIDDict, ListOfPrefabs, ListOfMetas, ListOfUnityScenes);
+            Msg("Creating importer object");
+            
+            if (Config.GetValue(ImportPrefab))
+            {
+                await default(ToWorld);
+                imports.Add(new UnityProjectImporter(files, AssetIDDict, ListOfPrefabs, ListOfMetas, ListOfUnityScenes, importSlotContainment, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets")).startImports());
+                await default(ToBackground);
+            }
+            
+            
             Msg("end Finding Prefabs and Metas");
             return ListOfNotMetasAndPrefabs.ToArray(); 
         }

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -12,12 +13,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
     [Serializable]
     public class Transform: IUnityObject
     {
-        public Dictionary<string, ulong> m_GameObject;
+        
         public TransformFloat4 m_LocalRotation;
         public TransformFloat3 m_LocalPosition;
         public TransformFloat3 m_LocalScale;
-        public Dictionary<string, ulong> m_Father;
-        public SourceObj m_CorrespondingSourceObject { get; set; }
+        
+        
         public ulong id { get; set; }
         public int m_RootOrder;
         public bool instanciated {  get; set; }
@@ -26,14 +27,18 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
         public ulong m_FatherID;
         public ulong m_GameObjectID;
+        public Dictionary<string, ulong> m_GameObject;
+        public Dictionary<string, ulong> m_Father;
+        public GameObject parentHashedGameObj;
 
+        public SourceObj m_CorrespondingSourceObject { get; set; }
 
         public Transform()
         {
         }
 
         //this is the magic that allows us to construct an entire game object prefab with just yaml parsing.
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
+        public async Task instanciateAsync(IUnityStructureImporter importer)
         {
             if (!instanciated)
             {
@@ -41,19 +46,28 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 
                 if (m_CorrespondingSourceObject.fileID != 0)
                 {
-                    await createSelf(existing_prefab_entries, importer);
+                    await createSelf(importer);
                 }
                 else
                 {
-                    existing_prefab_entries.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject PrefabInstanceObject);
+                    if (importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject PrefabInstanceObject))
+                    {
+                        PrefabInstance prefab = PrefabInstanceObject as PrefabInstance;
 
-                    PrefabInstance prefab = PrefabInstanceObject as PrefabInstance;
+                        if (!prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject targetObj)) {
 
-                    await prefab.instanciateAsync(existing_prefab_entries, importer);
+                            Transform alreadydefined = (targetObj as Transform);
+                            this.m_LocalRotation = alreadydefined.m_LocalRotation;
+                            this.m_LocalPosition = alreadydefined.m_LocalPosition;
+                            this.m_LocalScale = alreadydefined.m_LocalScale;
 
-                    if(!prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject targetObj)){
-                        await createSelf(existing_prefab_entries, importer);
+                            this.parentHashedGameObj.frooxEngineSlot.LocalPosition = new float3(m_LocalPosition.x, m_LocalPosition.y, m_LocalPosition.z);
+                            this.parentHashedGameObj.frooxEngineSlot.LocalRotation = new floatQ(m_LocalRotation.x, m_LocalRotation.y, m_LocalRotation.z, m_LocalRotation.w);
+                            this.parentHashedGameObj.frooxEngineSlot.LocalScale = new float3(m_LocalScale.x, m_LocalScale.y, m_LocalScale.z);
+                        }
                     }
+
+                    
 
                 }
 
@@ -65,15 +79,15 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
         }
 
-        private async Task createSelf(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
+        private async Task createSelf(IUnityStructureImporter importer)
         {
-            if (existing_prefab_entries.TryGetValue(m_GameObjectID, out IUnityObject foundobject) && foundobject.GetType() == typeof(GameObject))
+            if (importer.existingIUnityObjects.TryGetValue(m_GameObjectID, out IUnityObject foundobject) && foundobject.GetType() == typeof(GameObject))
             {
                 m_FatherID = m_Father["fileID"];
                 m_GameObjectID = m_GameObject["fileID"];
                 GameObject parentobj;
                 parentobj = foundobject as GameObject;
-                await parentobj.instanciateAsync(existing_prefab_entries, importer);
+                await parentobj.instanciateAsync(importer);
 
                 //heh the dictionary stuff in yamls are weird
                 await default(ToWorld);
@@ -81,15 +95,22 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 parentobj.frooxEngineSlot.LocalRotation = new floatQ(m_LocalRotation.x, m_LocalRotation.y, m_LocalRotation.z, m_LocalRotation.w);
                 parentobj.frooxEngineSlot.LocalScale = new float3(m_LocalScale.x, m_LocalScale.y, m_LocalScale.z);
                 await default(ToBackground);
-                if (existing_prefab_entries.TryGetValue(m_FatherID, out IUnityObject foundobjectparent) && foundobjectparent.GetType() == typeof(Transform))
+                if (importer.existingIUnityObjects.TryGetValue(m_FatherID, out IUnityObject foundobjectparent) && foundobjectparent.GetType() == typeof(Transform))
                 {
                     Transform parentTransform = foundobjectparent as Transform;
 
-                    await parentTransform.instanciateAsync(existing_prefab_entries, importer);
-                    if (existing_prefab_entries.TryGetValue(parentTransform.m_GameObjectID, out IUnityObject parentobj_parent) && parentobj_parent.GetType() == typeof(GameObject))
+                    await parentTransform.instanciateAsync(importer);
+                    if (importer.existingIUnityObjects.TryGetValue(parentTransform.m_GameObjectID, out IUnityObject parentobj_parent) && parentobj_parent.GetType() == typeof(GameObject))
                     {
                         await default(ToWorld);
                         parentobj.frooxEngineSlot.SetParent((parentobj_parent as GameObject).frooxEngineSlot, false);
+                        await default(ToBackground);
+                    }
+                    else if(parentTransform.parentHashedGameObj != null)
+                    {
+                        //if this transform was instanciated through the FileImportTaskScene class, we parent ourselves to it's game object here, which is filled by the FileImportTaskScene class.
+                        await default(ToWorld);
+                        parentobj.frooxEngineSlot.SetParent(parentTransform.parentHashedGameObj.frooxEngineSlot, false);
                         await default(ToBackground);
                     }
                     else
@@ -129,6 +150,11 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
 
             return result.ToString();
+        }
+
+        public async Task UpdateSelf(IUnityStructureImporter importer)
+        {
+            await createSelf(importer);
         }
     }
 

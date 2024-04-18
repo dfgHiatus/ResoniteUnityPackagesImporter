@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -15,18 +16,15 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public SourceObj m_CorrespondingSourceObject { get; set; }
         public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
-        //who cares. we're just doing this to implement the interface and all we're doing is shoving in a message.
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
-        #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
+        public async Task instanciateAsync(IUnityStructureImporter importer)
         {
             if (!instanciated)
             {
                 instanciated = true;
-                UnityPackageImporter.Msg("Tried to instanciate unknown Component prefab element type! id:\"" + id.ToString() + "\". It is probably not supported!");
+                await new Task(() => UnityPackageImporter.Msg("Tried to instanciate unknown Component prefab element type! id:\"" + id.ToString() + "\". It is probably not supported!"));
             }
-            
         }
+
         //a detailed to string for debugging.
         public override string ToString()
         {
@@ -40,5 +38,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
             return result.ToString();
         }
+
+        
     }
 }

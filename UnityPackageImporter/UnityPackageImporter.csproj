@@ -101,10 +101,11 @@
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\GameObject.cs" />
     <Compile Include="Models\FileImportHelperTaskMaterial.cs" />
     <Compile Include="Models\FileImportTaskScene.cs" />
-    <Compile Include="Models\ImportMeshTask.cs" />
+    <Compile Include="Models\IUnityStructureImporter.cs" />
     <Compile Include="Models\MetaDataFile.cs" />
-    <Compile Include="Models\FileImportTask.cs" />
-    <Compile Include="Models\UnityStructureImporter.cs" />
+    <Compile Include="Models\UnityPrefabImportTask.cs" />
+    <Compile Include="Models\UnitySceneImportTask.cs" />
+    <Compile Include="Models\UnityProjectImporter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TarTarSource.cs" />
     <Compile Include="UnityPackageExtractor.cs" />

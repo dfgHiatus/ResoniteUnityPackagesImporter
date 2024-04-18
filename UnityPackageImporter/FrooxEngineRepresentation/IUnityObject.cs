@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Security.Util;
 using System.Text;
 using System.Threading.Tasks;
+using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation
 {
@@ -14,7 +15,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         bool instanciated { get; set; }
         SourceObj m_CorrespondingSourceObject { get; set; }
         Dictionary<string, ulong> m_PrefabInstance { get; set; }
-        Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer);
+        Task instanciateAsync(IUnityStructureImporter importer);
 
     }
 

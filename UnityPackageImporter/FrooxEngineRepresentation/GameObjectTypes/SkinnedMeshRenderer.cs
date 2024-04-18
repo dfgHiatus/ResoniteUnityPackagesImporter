@@ -1,4 +1,5 @@
-﻿using FrooxEngine;
+﻿using Assimp;
+using FrooxEngine;
 using Leap.Unity;
 using Microsoft.Cci;
 using System;
@@ -22,7 +23,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public Dictionary<int, FileImportHelperTaskMaterial> materials = new Dictionary<int, FileImportHelperTaskMaterial>();
         public string Name = string.Empty;
         public List<Dictionary<string, string>> m_Materials;
-        public Dictionary<string, string> m_Mesh;
+        public SourceObj m_Mesh;
         public List<Dictionary<string, ulong>> m_Bones;
         public FrooxEngine.SkinnedMeshRenderer createdMeshRenderer;
         public GameObject parentobj;
@@ -33,10 +34,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
 
 
-        //this doesn't fully instanciate it, since we have to import our files all at once.
-        //instead we register ourselfs into a list of meshes that wanna be imported, so we can import each model once.
-        //this is done later in the unitypackage importer process, where we scan the dictionary we're adding our own id to so we can import our model and finalize.
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
+        public async Task instanciateAsync(IUnityStructureImporter importer)
         {
 
             if (!instanciated)
@@ -45,10 +43,11 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 instanciated = true;
                 try
                 {
-                    importer.MeshRendererID_To_FileGUID.Add(id, m_Mesh["guid"]);
-                    existing_prefab_entries.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc);
+
+                    //importer.unityProjectImporter.MeshRendererID_To_FileGUID.Add(id, m_Mesh["guid"]); <-wtf does this do? commented out since this read only. @989onan 
+                    importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc);
                     await default(ToWorld);
-                    await parentobj_inc.instanciateAsync(existing_prefab_entries, importer);
+                    await parentobj_inc.instanciateAsync(importer);
                     await default(ToBackground);
                     parentobj = parentobj_inc as GameObject;
                     Name = parentobj.m_Name;
@@ -62,12 +61,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 await default(ToBackground);
                 foreach (Dictionary<string, ulong> item in m_Bones)
                 {
-                    if (existing_prefab_entries.TryGetValue(item["fileID"], out IUnityObject bone_trans))
+                    if (importer.existingIUnityObjects.TryGetValue(item["fileID"], out IUnityObject bone_trans))
                     {
-                        if (existing_prefab_entries.TryGetValue(((Transform)bone_trans).m_GameObject["fileID"], out IUnityObject bone_obj))
+                        if (importer.existingIUnityObjects.TryGetValue(((Transform)bone_trans).m_GameObject["fileID"], out IUnityObject bone_obj))
                         {
                             GameObject obj2 = bone_obj as GameObject;
-                            await bone_obj.instanciateAsync(existing_prefab_entries, importer);
+                            await bone_obj.instanciateAsync(importer);
                         }
                     }
                     else
@@ -83,11 +82,11 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     
                     try
                     {
-                        if (importer.AssetIDDict.ContainsKey(material["guid"]))
+                        if (importer.unityProjectImporter.AssetIDDict.ContainsKey(material["guid"]))
                         {
                             await default(ToWorld);
-                            string file = importer.AssetIDDict[material["guid"]];
-                            var matimporttask = new FileImportHelperTaskMaterial(material["guid"], file, importer);
+                            string file = importer.unityProjectImporter.AssetIDDict[material["guid"]];
+                            var matimporttask = new FileImportHelperTaskMaterial(material["guid"], file, importer.unityProjectImporter);
                             materials.Add(counter, matimporttask);
                             await default(ToBackground);
                         }
@@ -105,24 +104,106 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
 
                 }
-                
+
+                if (importer.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(m_Mesh.guid, out FileImportTaskScene importedfbx))
+                {
+                    if(importedfbx.FILEID_To_Slot_Pairs.TryGetValue(m_Mesh, out IUnityObject skinnedMeshRenderer)){
+                        FrooxEngine.SkinnedMeshRenderer FoundMesh = this.parentobj.frooxEngineSlot.AttachComponent<FrooxEngine.SkinnedMeshRenderer>();
+                        FoundMesh.Mesh.ReferenceID = (skinnedMeshRenderer as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer).createdMeshRenderer.Mesh.ReferenceID;
+
+                        FoundMesh.Enabled = this.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported;
+
+
+
+                        //TODO: These are scaled wrong, causing the mesh to scale weirdly. Use  
+                        FoundMesh.ExplicitLocalBounds.Value =
+                        Elements.Core.BoundingBox.CenterSize(
+                            new Elements.Core.float3(
+                                this.m_AABB.m_Center["x"],
+                                this.m_AABB.m_Center["y"],
+                                this.m_AABB.m_Center["z"]),
+                            new Elements.Core.float3(this.m_AABB.m_Extent["x"],
+                            this.m_AABB.m_Extent["y"],
+                            this.m_AABB.m_Extent["z"]
+                            ));
+                        FoundMesh.BoundsComputeMethod.Value = SkinnedBounds.Explicit; //use Unity's skinned bounds methods. 
+                        await default(ToBackground);
+
+                        Dictionary<string, Slot> bonemappings = new Dictionary<string, Slot>();
+                        UnityPackageImporter.Msg("gathering bones for model.");
+                        foreach (Dictionary<string, ulong> bonemap in this.m_Bones)
+                        {
+                            if (importer.existingIUnityObjects.TryGetValue(bonemap["fileID"], out IUnityObject unityObject))
+                            {
+                                FrooxEngineRepresentation.GameObjectTypes.Transform obj = unityObject as FrooxEngineRepresentation.GameObjectTypes.Transform;
+                                importer.existingIUnityObjects.TryGetValue(obj.m_GameObjectID, out IUnityObject unityObjectGame);
+                                GameObject gamneobj = unityObjectGame as GameObject;
+                                bonemappings.Add(gamneobj.m_Name, gamneobj.frooxEngineSlot);
+                            }
+                            else
+                            {
+                                UnityPackageImporter.Msg("Couldn't find bone for skinned mesh renderer on your prefab! This is bad!");
+                            }
+
+
+                        }
+
+
+
+                        await default(ToWorld);
+                        UnityPackageImporter.Msg("setting up bones for model.");
+                        FoundMesh.SetupBones(bonemappings);
+                        await default(ToBackground);
+                        await default(ToWorld);
+                        UnityPackageImporter.Msg("clearing bad material objects for: \"" + FoundMesh.Slot.Name + "\"");
+                        FoundMesh.Materials.Clear();
+                        await default(ToBackground);
+
+                        UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
+                        for (int index = 0; index < this.m_Materials.Count(); index++)
+                        {
+
+                            if (this.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask))
+                            {
+                                try
+                                {
+                                    await default(ToWorld);
+                                    FoundMesh.Materials.Add().Target = await materialtask.runImportFileMaterialsAsync();
+                                    await default(ToBackground);
+                                }
+                                catch (Exception e)
+                                {
+                                    UnityPackageImporter.Msg("Could not attach material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
+                                    UnityPackageImporter.Msg("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
+                                    UnityPackageImporter.Msg(e.Message);
+                                    await default(ToWorld);
+                                    FoundMesh.Materials.Add();
+                                    await default(ToBackground);
+                                }
+                            }
+                        }
+
+                        
+
+                        UnityPackageImporter.Msg("Setting up blend shapes");
+                        await default(ToWorld);
+                        FoundMesh.SetupBlendShapes();
+                        await default(ToBackground);
+
+                        UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + FoundMesh.Slot.Name + "\" imported for prefab!");
+                    }
+                }
 
                 
+
             }
 
 
         }
 
-        //to store aabb data to bring into froox engine for skinned mesh renderers
-        public class AABB
-        {
-            public Dictionary<string, float> m_Center;
-            public Dictionary<string, float> m_Extent;
-            public AABB()
-            {
 
-            }
-        }
+        
+        
 
         public override string ToString()
         {
@@ -134,6 +215,18 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
             result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
             return base.ToString();
+        }
+
+        
+    }
+    //to store aabb data to bring into froox engine for skinned mesh renderers
+    public class AABB
+    {
+        public Dictionary<string, float> m_Center;
+        public Dictionary<string, float> m_Extent;
+        public AABB()
+        {
+
         }
     }
 }

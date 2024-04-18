@@ -29,49 +29,37 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public Dictionary<SourceObj, IUnityObject> PrefabHashes = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
 
         //This will hold up the importing process but who cares we're only importing each fbx once
-        public async Task instanciateAsync(Dictionary<ulong, IUnityObject> existing_prefab_entries, UnityStructureImporter importer)
+        public async Task instanciateAsync(IUnityStructureImporter importer)
         {
             if (!instanciated)
             {
-                if (importer.AssetIDDict.ContainsKey(m_CorrespondingSourceObject.guid))
+                if (importer.unityProjectImporter.AssetIDDict.ContainsKey(m_CorrespondingSourceObject.guid))
                 {
                     //find FBX's in our scene that need importing, so we can import them and then attach our prefab objects to it.
                     //We are sharing the FBX's, so if it's a project with X prefabs of the same model but with different changes can all use the same base model
                     //next we associate each shared FBX to prefabs that use them. then we duplicate the shared FBX's to each scene including this one, and then those duplicated FBXs become the prefabs themselves
                     //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
                     Slot targetParent;
-                    if(existing_prefab_entries.TryGetValue(m_Modification.m_TransformParent["fileID"], out IUnityObject foundobjectparent))
+                    if(importer.existingIUnityObjects.TryGetValue(m_Modification.m_TransformParent["fileID"], out IUnityObject foundobjectparent))
                     {
                         targetParent = (foundobjectparent as GameObject).frooxEngineSlot;
                     }
                     else
                     {
-                        targetParent = importer.CurrentSceneSlot;
+                        targetParent = importer.CurrentStructureRootSlot;
                     }
-                    if (!importer.SharedImportedFBXScenes.ContainsKey(m_CorrespondingSourceObject.guid))
-                    {
-                        UnityPackageImporter.Debug("now importing \"" + importer.AssetIDDict[m_CorrespondingSourceObject.guid] + "\" for the prefab with an id of \"" + id.ToString() + "\"!");
-                        FileImportTaskScene importtask = new FileImportTaskScene(importer.root, m_CorrespondingSourceObject.guid, importer, importer.AssetIDDict[m_CorrespondingSourceObject.guid]);
-                        await importtask.runnerWrapper();
-                        ImportRoot = new GameObject();
-                        ImportRoot.frooxEngineSlot = importtask.FinishedFileSlot.Duplicate();
-                        ImportRoot.frooxEngineSlot.SetParent(targetParent);
-                        ImportRoot.instanciated = true;
-                        importer.SharedImportedFBXScenes.Add(m_CorrespondingSourceObject.guid, importtask);
-                    }
-                    else
-                    {
-                        ImportRoot.frooxEngineSlot = importer.SharedImportedFBXScenes[m_CorrespondingSourceObject.guid].FinishedFileSlot.Duplicate();
-                        ImportRoot.frooxEngineSlot.SetParent(targetParent);
-                    }
+                    await default(ToWorld);
+                    ImportRoot.frooxEngineSlot = importer.unityProjectImporter.SharedImportedFBXScenes[m_CorrespondingSourceObject.guid].FinishedFileSlot.Duplicate();
+                    ImportRoot.frooxEngineSlot.SetParent(targetParent);
+                    await default(ToBackground);
 
-                    this.PrefabHashes = importer.SharedImportedFBXScenes[m_CorrespondingSourceObject.guid].FILEID_To_Slot_Pairs;
+                    this.PrefabHashes = importer.unityProjectImporter.SharedImportedFBXScenes[m_CorrespondingSourceObject.guid].FILEID_To_Slot_Pairs;
 
                     foreach(Modification mod in m_Modification.m_Modifications)
                     {
                         if(this.PrefabHashes.TryGetValue(mod.target, out IUnityObject targetobj)){
 
-
+                            
                             Type targettype = targetobj.GetType();
                             try
                             {
@@ -102,13 +90,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                                         ".");
 
                                 }
-
+                                
                             }
                             catch
                             {
-
+                                UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the current scene is malformed!!! The modification with the hash \"" + mod.target.fileID + "\" does not exist! ");
                             }
-                            
 
 
                         }
@@ -125,11 +112,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 {
                     UnityPackageImporter.Warn("The prefab with a file id of \""+ id.ToString()+ "\" in the current scene is malformed!!! The file source of the prefab doesn't exist in the imported package or file list set.");
                 }
-
-                
-
-
-                instanciated = true;
             }
         }
 

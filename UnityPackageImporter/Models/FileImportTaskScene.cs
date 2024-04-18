@@ -19,6 +19,8 @@ using UnityPackageImporter.FrooxEngineRepresentation;
 using UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
 using UnityEngine.VR;
 using uOSC;
+using UnityEngine;
+using Elements.Assets;
 
 namespace UnityPackageImporter.Models
 {
@@ -27,7 +29,7 @@ namespace UnityPackageImporter.Models
         public ModelImportData data;
         public Dictionary<SourceObj, IUnityObject> FILEID_To_Slot_Pairs = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
         public string file;
-        private UnityStructureImporter importer;
+        private UnityProjectImporter importer;
         public string assetID;
         public bool import_finished = false;
 
@@ -37,7 +39,7 @@ namespace UnityPackageImporter.Models
         public bool? isBiped;
         public bool running;
 
-        public FileImportTaskScene(Slot targetSlot, string assetID, UnityStructureImporter importer, string file)
+        public FileImportTaskScene(Slot targetSlot, string assetID, UnityProjectImporter importer, string file)
         {
             this.targetSlot = targetSlot;
             this.file = file;
@@ -98,6 +100,7 @@ namespace UnityPackageImporter.Models
             UnityPackageImporter.Msg("Finished task for file " + file);
             this.FinishedFileSlot = data.TryGetSlot(scene.RootNode); //get the slot in case it was dumped beside a bunch of others.
             FILEID_To_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(this.data, scene.RootNode, this.FinishedFileSlot, this.assetID));
+           
             foreach(FrooxEngine.SkinnedMeshRenderer mesh in this.data.skinnedRenderers)
             {
                 string calculatedpath = FindSlotPath(mesh.Slot, this.FinishedFileSlot);
@@ -106,11 +109,31 @@ namespace UnityPackageImporter.Models
                 FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer skinnedrenderer = new FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer();
                 skinnedrenderer.createdMeshRenderer = mesh;
 
+                await default(ToWorld);
+                while (!mesh.Mesh.IsAssetAvailable)
+                {
+                    await default(NextUpdate);
+                    await Task.Delay(1000);
+                    UnityPackageImporter.Msg("Waiting for mesh assets for: \"" + mesh.Slot.Name + "\"");
+                }
+                await default(ToWorld);
+                UnityPackageImporter.Msg("finished waiting for mesh assets for: \"" + mesh.Slot.Name + "\"");
+
                 SourceObj identifier = new SourceObj();
                 identifier.fileID = Calculated_fileid;
                 identifier.guid = this.assetID;
                 FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
             }
+
+
+
+            
+
+
+            
+
+            
+
 
             this.running = false;
         }
@@ -129,7 +152,7 @@ namespace UnityPackageImporter.Models
             long Calculated_fileid = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(gameobjpath));
            
             Console.WriteLine($"{Calculated_fileid} was made from slot \"{curnode.Name}\" with path \"{gameobjpath}\"");
-            GameObject calclatedobj = new GameObject();
+            FrooxEngineRepresentation.GameObjectTypes.GameObject calclatedobj = new FrooxEngineRepresentation.GameObjectTypes.GameObject();
             calclatedobj.instanciated = true;
             calclatedobj.frooxEngineSlot = curnode;
 
@@ -142,8 +165,9 @@ namespace UnityPackageImporter.Models
 
             long Calculated_fileidtransform = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(transformpath));
             FrooxEngineRepresentation.GameObjectTypes.Transform calclatedTransformobj = new FrooxEngineRepresentation.GameObjectTypes.Transform();
+            calclatedTransformobj.parentHashedGameObj = calclatedobj;
+
             Console.WriteLine($"{Calculated_fileidtransform} was made from slot \"{curnode.Name}\" with path \"{transformpath}\"");
-            calclatedTransformobj.instanciated = true;
 
             SourceObj identifier2 = new SourceObj();
             identifier2.fileID = Calculated_fileidtransform;
