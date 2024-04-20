@@ -71,29 +71,28 @@ namespace UnityPackageImporter
             foreach (KeyValuePair<string,string> Prefab in this.ListOfPrefabs)
             {
 
-                UnityPackageImporter.Msg("Start prefab import");
+                UnityPackageImporter.Msg("create prefab import task obj for prefab \"" + Prefab.Value + "\"");
                 await default(ToWorld);
-                unityImportTasks.Add(new UnityPrefabImportTask(root, Prefab));
+                unityImportTasks.Add(new UnityPrefabImportTask(root, Prefab, this));
                 await default(ToBackground);
-                UnityPackageImporter.Msg("End prefab import");
             }
-            UnityPackageImporter.Msg("end Prefab Importing patch unitypackage, starting on scenes");
             foreach(var Scene in this.ListOfUnityScenes)
             {
-                UnityPackageImporter.Msg("Start scene import");
+                UnityPackageImporter.Msg("create scene import task obj for scene \""+ Scene.Value+ "\"");
                 await default(ToWorld);
-                unityImportTasks.Add(new UnitySceneImportTask(root, Scene));
+                unityImportTasks.Add(new UnitySceneImportTask(root, Scene, this));
                 await default(ToBackground);
-
-                UnityPackageImporter.Msg("End scene import");
             }
             await default(ToWorld);
             await Task.WhenAll(unityImportTasks.Select(task => task.StartImport()));
+            UnityPackageImporter.Msg("Finished project importing! Cleaning up...");
             await default(ToBackground);
 
             foreach (FileImportTaskScene obj in this.SharedImportedFBXScenes.Values)
             {
+                await default(ToWorld);
                 obj.FinishedFileSlot.Destroy();
+                await default(ToBackground);
             }
 
 
@@ -127,144 +126,129 @@ namespace UnityPackageImporter
 
 
         //this is static for a reason to be shared, don't use any fields from this importer that aren't static, and make sure to use locking to be thread safe
-        public static async Task SettupHumanoid(string fbxfilesource, Slot FBXRoot)
+        public static async Task SettupHumanoid(FileImportTaskScene task, Slot FBXRoot)
         {
-
-
+            UnityPackageImporter.Msg("checking if this FBX is a humanoid");
+            await task.metafile.ScanFile(task, FBXRoot);
+            bool isBiped = task.metafile.modelBoneHumanoidAssignments.IsBiped;
 
             //EXPLAINATION OF THIS CODE:
             //we are using the froox engine data made from assimp to force our model onto what we generated instead of
             //what froox engine made. This is better than asking froox engine to fully import the model for us
             //we get more control this way.
+            if (isBiped) {
 
-
-            await default(ToWorld);
-            Slot taskSlot = FBXRoot;
-            Rig rig = taskSlot.GetComponent<Rig>();
-            if (rig == null)
-            {
-                UnityPackageImporter.Msg("rig missing, attaching.");
-                UnityPackageImporter.Msg("slot to string is: " + taskSlot.ToString());
-                rig = taskSlot.AttachComponent<Rig>();
-            }
-            await default(ToBackground);
-
-            UnityPackageImporter.Msg("finding this task's Prefab Data");
-
-            await default(ToWorld);
-            //var meshname = taskSlot.Name;
-            var foundvrik = null != taskSlot.GetComponent(typeof(VRIK));
-            MetaDataFile metadata = new MetaDataFile();
-            UnityPackageImporter.Msg("checking biped data once for the first time, and only once for file: \"" + fbxfilesource + "\"");
-            UnityPackageImporter.Msg("Reading this Model File's MetaData");
-            //this creates our biped rig under the slot we specify. in this case, it is the root.
-            //it scans the file's metadata to make it work.
-            //this MetaDataFile object class gives us access to the biped rig component directly if desired
-            //but we're using it to also get our global scale.
-            await default(ToBackground);
-            await metadata.ScanFile(fbxfilesource + UnityPackageImporter.UNITY_META_EXTENSION, taskSlot);
-            await default(ToWorld);
-            UnityPackageImporter.Msg("returning to main thread and checking if we found a biped rig.");
-            bool isBiped = metadata.modelBoneHumanoidAssignments.IsBiped;
-            await default(ToBackground);
-
-            await default(ToWorld);
-            UnityPackageImporter.Msg("Finding if we set up VRIK and are biped.");
-            //this has value shouldn't throw an error because it was assigned above.
-            if (!foundvrik && (isBiped))
-            {
-                UnityPackageImporter.Msg("We have not set up vrik!");
-
-
-                //put our stuff under a slot called rootnode so froox engine can set this model up as an avatar
                 await default(ToWorld);
-                Slot rootnode = taskSlot.AddSlot("RootNode");
-
-                foreach (Slot prefabImmediateChild in taskSlot.Children.ToArray())
+                Slot taskSlot = FBXRoot;
+                Rig rig = taskSlot.GetComponent<Rig>();
+                if (rig == null)
                 {
-                    prefabImmediateChild.SetParent(rootnode, false);
+                    UnityPackageImporter.Msg("rig missing, attaching.");
+                    UnityPackageImporter.Msg("slot to string is: " + taskSlot.ToString());
+                    rig = taskSlot.AttachComponent<Rig>();
                 }
-                rootnode.LocalScale *= metadata.GlobalScale;
+                await default(ToBackground); 
 
 
-                UnityPackageImporter.Msg("Scaling up/down armature to file's global scale.");
-                //make the bone distances bigger since this model's file may have been exported 100X smaller
                 await default(ToWorld);
-                foreach (Slot slot in rootnode.GetAllChildren(false).ToArray())
+                var foundvrik = null != taskSlot.GetComponent(typeof(VRIK));
+                await default(ToBackground);
+
+                
+
+
+
+
+                await default(ToWorld);
+                UnityPackageImporter.Msg("Finding if we set up VRIK and are biped.");
+                if (!foundvrik && (isBiped))
                 {
-                    if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>())
+                    UnityPackageImporter.Msg("We have not set up vrik!");
+
+
+                    //put our stuff under a slot called rootnode so froox engine can set this model up as an avatar
+                    await default(ToWorld);
+                    Slot rootnode = FBXRoot; //intentional - @989onan
+                    rootnode.LocalScale *= task.metafile.GlobalScale;
+
+
+                    UnityPackageImporter.Msg("Scaling up/down armature to file's global scale.");
+                    //make the bone distances bigger since this model's file may have been exported 100X smaller
+                    await default(ToWorld);
+                    foreach (Slot slot in rootnode.GetAllChildren(false).ToArray())
                     {
 
-                        UnityPackageImporter.Msg("scaling bone " + slot.Name);
-                        slot.LocalPosition /= metadata.GlobalScale;
-                    }
 
 
-                    UnityPackageImporter.Msg("creating bone colliders for bone " + slot.Name);
-                    BodyNode node = BodyNode.NONE;
-                    try
-                    {
-                        node = metadata.modelBoneHumanoidAssignments.Bones.FirstOrDefault(i => i.Value.Target.Name.Equals(slot.Name)).key;
-                    }
-                    catch (Exception) { } //this is to catch key not found so we shouldn't handle this.
-
-                    if (BodyNode.NONE != node)
-                    {
-                        UnityPackageImporter.Msg("finding length of bone " + slot.Name);
-                        float3 v = float3.Zero;
-                        UnityPackageImporter.Msg("finding bone length " + slot.Name);
-                        foreach (Slot child in slot.Children.ToArray())
+                        UnityPackageImporter.Msg("creating bone colliders for bone " + slot.Name);
+                        BodyNode node = BodyNode.NONE;
+                        try
                         {
-                            float3 globalPoint = child.GlobalPosition;
-                            v = slot.GlobalPointToLocal(in globalPoint);
-                            if (v.Magnitude > 0.1f)
+                            node = task.metafile.modelBoneHumanoidAssignments.Bones.FirstOrDefault(i => i.Value.Target.Name.Equals(slot.Name)).key;
+                        }
+                        catch (Exception) { } //this is to catch key not found so we shouldn't handle this.
+
+                        if (BodyNode.NONE != node)
+                        {
+                            UnityPackageImporter.Msg("finding length of bone " + slot.Name);
+                            float3 v = float3.Zero;
+                            UnityPackageImporter.Msg("finding bone length " + slot.Name);
+                            foreach (Slot child in slot.Children.ToArray())
                             {
-                                break;
+                                float3 globalPoint = child.GlobalPosition;
+                                v = slot.GlobalPointToLocal(in globalPoint);
+                                if (v.Magnitude > 0.1f)
+                                {
+                                    break;
+                                }
+                            }
+                            foreach (Slot child in slot.Children.ToArray())
+                            {
+                                await default(ToWorld);
+                                float3 globalPoint = child.GlobalPosition;
+                                float value = v.Magnitude * 0.125f;
+                                float magnitude = v.Magnitude;
+
+                                v = slot.GlobalPointToLocal(in globalPoint);
+                                float3 localPosition = v * 0.5f;
+                                Slot slotcollider = slot.AddSlot(slot.Name + " Collider");
+                                slotcollider.LocalPosition = localPosition;
+                                floatQ a = floatQ.LookRotation(in v);
+                                float3 globalPoint2 = float3.Up;
+                                float3 to = float3.Forward;
+                                floatQ b = floatQ.FromToRotation(in globalPoint2, in to);
+                                slotcollider.LocalRotation = a * b;
+
+                                await default(ToWorld);
+                                CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
+                                capsuleCollider.Radius.Value = value;
+                                capsuleCollider.Height.Value = magnitude;
                             }
                         }
-                        foreach (Slot child in slot.Children.ToArray())
-                        {
-                            await default(ToWorld);
-                            float3 globalPoint = child.GlobalPosition;
-                            float value = v.Magnitude * 0.125f;
-                            float magnitude = v.Magnitude;
 
-                            v = slot.GlobalPointToLocal(in globalPoint);
-                            float3 localPosition = v * 0.5f;
-                            Slot slotcollider = slot.AddSlot(slot.Name + " Collider");
-                            slotcollider.LocalPosition = localPosition;
-                            floatQ a = floatQ.LookRotation(in v);
-                            float3 globalPoint2 = float3.Up;
-                            float3 to = float3.Forward;
-                            floatQ b = floatQ.FromToRotation(in globalPoint2, in to);
-                            slotcollider.LocalRotation = a * b;
-
-                            await default(ToWorld);
-                            CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
-                            capsuleCollider.Radius.Value = value;
-                            capsuleCollider.Height.Value = magnitude;
-                        }
                     }
 
+                    await default(ToBackground);
+
+
+
+                    UnityPackageImporter.Msg("attaching VRIK");
+                    await default(ToWorld);
+                    VRIK vrik = taskSlot.AttachComponent<VRIK>();
+                    await default(ToBackground);
+                    UnityPackageImporter.Msg("Initializing VRIK");
+                    await default(ToWorld);
+                    vrik.Solver.SimulationSpace.Target = taskSlot.Parent;
+                    vrik.Solver.OffsetSpace.Target = taskSlot.Parent;
+                    vrik.Initiate(); //create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot, 
+                    taskSlot.AttachComponent<DestroyRoot>();
+                    taskSlot.AttachComponent<ObjectRoot>();
+                    await default(ToBackground);
                 }
-
-                await default(ToBackground);
-
-
-
-                UnityPackageImporter.Msg("attaching VRIK");
-                await default(ToWorld);
-                VRIK vrik = taskSlot.AttachComponent<VRIK>();
-                await default(ToBackground);
-                UnityPackageImporter.Msg("Initializing VRIK");
-                await default(ToWorld);
-                vrik.Solver.SimulationSpace.Target = taskSlot.Parent;
-                vrik.Solver.OffsetSpace.Target = taskSlot.Parent;
-                vrik.Initiate(); //create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot, 
-                taskSlot.AttachComponent<DestroyRoot>();
-                taskSlot.AttachComponent<ObjectRoot>();
-                await default(ToBackground);
-
+                else
+                {
+                    UnityPackageImporter.Msg("this prefab is not biped. ");
+                }
             }
             else
             {

@@ -224,11 +224,6 @@ namespace UnityPackageImporter.Models
 
             }
 
-
-
-
-
-
             await default(ToBackground);
             return finalMaterial;
 

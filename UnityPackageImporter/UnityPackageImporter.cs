@@ -2,15 +2,11 @@
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
-using Leap.Unity;
 using ResoniteModLoader;
-using SkyFrost.Base;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using UnityEngine;
 using UnityPackageImporter.Extractor;
 
 namespace UnityPackageImporter;

@@ -25,11 +25,11 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         
         public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
-        public ulong m_FatherID;
-        public ulong m_GameObjectID;
+        public ulong m_FatherID; //this is used during instanciation, and should never be used elsewhere. besides, you'll never need this for attaching components or anything - @989onan 
+        public ulong m_GameObjectID; //use this when trying to find the parent gameobject of a component that points to a transform.
         public Dictionary<string, ulong> m_GameObject;
         public Dictionary<string, ulong> m_Father;
-        public GameObject parentHashedGameObj;
+        public GameObject parentHashedGameObj; //instanciated on Transforms imported by FBXs. We can use this to find our parent game object via the prefab file hashing system.
 
         public SourceObj m_CorrespondingSourceObject { get; set; }
 
@@ -44,7 +44,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             {
                 instanciated = true;
                 
-                if (m_CorrespondingSourceObject.fileID != 0)
+                if (m_CorrespondingSourceObject.guid == null)
                 {
                     await createSelf(importer);
                 }
@@ -54,20 +54,43 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     {
                         PrefabInstance prefab = PrefabInstanceObject as PrefabInstance;
 
-                        if (!prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject targetObj)) {
+                        if (prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject targetObj)) {
 
                             Transform alreadydefined = (targetObj as Transform);
-                            this.m_LocalRotation = alreadydefined.m_LocalRotation;
-                            this.m_LocalPosition = alreadydefined.m_LocalPosition;
-                            this.m_LocalScale = alreadydefined.m_LocalScale;
 
-                            this.parentHashedGameObj.frooxEngineSlot.LocalPosition = new float3(m_LocalPosition.x, m_LocalPosition.y, m_LocalPosition.z);
-                            this.parentHashedGameObj.frooxEngineSlot.LocalRotation = new floatQ(m_LocalRotation.x, m_LocalRotation.y, m_LocalRotation.z, m_LocalRotation.w);
-                            this.parentHashedGameObj.frooxEngineSlot.LocalScale = new float3(m_LocalScale.x, m_LocalScale.y, m_LocalScale.z);
+
+
+                            
+
+                            try
+                            {
+                                this.parentHashedGameObj = alreadydefined.parentHashedGameObj;
+
+                                
+
+                                await this.parentHashedGameObj.instanciateAsync(importer);
+
+                                this.m_GameObject = new Dictionary<string, ulong>
+                                {
+                                    { "fileID", this.parentHashedGameObj.id}
+                                };
+                                m_GameObjectID = m_GameObject["fileID"];
+
+                                this.m_LocalPosition = new TransformFloat3(this.parentHashedGameObj.frooxEngineSlot.LocalPosition.x, this.parentHashedGameObj.frooxEngineSlot.LocalPosition.y, this.parentHashedGameObj.frooxEngineSlot.LocalPosition.z);
+                                this.m_LocalRotation = new TransformFloat4(this.parentHashedGameObj.frooxEngineSlot.LocalRotation.x, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.y, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.z, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.w);
+                                this.m_LocalScale = new TransformFloat3(this.parentHashedGameObj.frooxEngineSlot.LocalScale.x, this.parentHashedGameObj.frooxEngineSlot.LocalScale.y, this.parentHashedGameObj.frooxEngineSlot.LocalScale.z);
+                            }
+                            catch (Exception ex)
+                            {
+                                UnityPackageImporter.Warn("The inline prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" did not find it's parent transform's game object! this will split your import in half heiarchy wise! This should never happen!");
+                                UnityPackageImporter.Warn(ex.Message, ex.StackTrace);
+                            }
+                            
+
                         }
                     }
+                    instanciated = true;
 
-                    
 
                 }
 
@@ -136,16 +159,16 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         {
             StringBuilder result = new StringBuilder();
             result.AppendLine("id: " + id.ToString());
-            result.AppendLine("instanciated: " + instanciated.ToString());
-            result.AppendLine("m_GameObjectID: " + m_GameObjectID.ToString());
-            result.AppendLine("m_GameObject: " + m_GameObject.ToString());
-            result.AppendLine("m_Father: " + m_Father.ToString());
-            result.AppendLine("m_FatherID: " + m_FatherID.ToString());
-            result.AppendLine("m_LocalRotation: " + m_LocalRotation.ToString());
-            result.AppendLine("m_LocalPosition: " + m_LocalPosition.ToString());
-            result.AppendLine("m_LocalScale: " + m_LocalScale.ToString());
-            result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
-            result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
+            result.AppendLine("instanciated: " + (instanciated.ToString()));
+            result.AppendLine("m_GameObjectID: " + (m_GameObjectID == 0? "null":m_GameObjectID.ToString()));
+            result.AppendLine("m_GameObject: " + (m_GameObject == null ? "null" : m_GameObject.ToString()));
+            result.AppendLine("m_Father: " + (m_Father == null ? "null" : m_Father.ToString()));
+            result.AppendLine("m_FatherID: " + (m_FatherID == 0 ? "null" : m_FatherID.ToString()));
+            result.AppendLine("m_LocalRotation: " + (m_LocalRotation == null ? "null" : m_LocalRotation.ToString()));
+            result.AppendLine("m_LocalPosition: " + (m_LocalPosition == null ? "null" : m_LocalPosition.ToString()));
+            result.AppendLine("m_LocalScale: " + (m_LocalScale == null ? "null" : m_LocalScale.ToString()));
+            result.AppendLine("m_CorrespondingSourceObject" + (m_CorrespondingSourceObject == null ? "null" : m_CorrespondingSourceObject.ToString()));
+            result.AppendLine("m_PrefabInstance: " + (m_PrefabInstance == null ? "null" : m_PrefabInstance.ToString()));
             
 
 
@@ -174,6 +197,15 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
             return result.ToString();
         }
+
+        public TransformFloat4(float x, float y, float z, float w)
+        {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.w = w;
+        }
+
     }
 
     public class TransformFloat3
@@ -181,6 +213,14 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public float x;
         public float y;
         public float z;
+
+        public TransformFloat3(float x, float y, float z)
+        {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();

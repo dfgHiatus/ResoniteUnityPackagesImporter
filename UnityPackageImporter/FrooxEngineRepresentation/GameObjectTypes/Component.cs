@@ -1,5 +1,4 @@
-﻿using Leap.Unity;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,12 +15,13 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public SourceObj m_CorrespondingSourceObject { get; set; }
         public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
-        public async Task instanciateAsync(IUnityStructureImporter importer)
-        {
+        #pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+        public async Task instanciateAsync(IUnityStructureImporter importer) {
+        #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
             if (!instanciated)
             {
                 instanciated = true;
-                await new Task(() => UnityPackageImporter.Msg("Tried to instanciate unknown Component prefab element type! id:\"" + id.ToString() + "\". It is probably not supported!"));
+                UnityPackageImporter.Msg("Tried to instanciate unknown Component element type! id:\"" + id.ToString() + "\". It is probably not supported!");
             }
         }
 
@@ -31,8 +31,23 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             StringBuilder result = new StringBuilder();
             result.AppendLine("id: " + id.ToString());
             result.AppendLine("instanciated: " + instanciated.ToString());
-            result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
-            result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
+            if (m_CorrespondingSourceObject != null)
+            {
+                result.AppendLine("m_CorrespondingSourceObject: " + m_CorrespondingSourceObject.ToString());
+
+            }
+            else
+            {
+                result.AppendLine("m_CorrespondingSourceObject: null");
+            }
+            if (m_PrefabInstance != null)
+            {
+                result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToString());
+            }
+            else
+            {
+                result.AppendLine("m_PrefabInstance: null");
+            }
             result.AppendLine("Component type is not a valid type. This is all the info it has on it above.");
 
 

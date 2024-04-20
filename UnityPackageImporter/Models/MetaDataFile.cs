@@ -4,10 +4,11 @@ using Microsoft.Cci;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter
 {
-    internal class MetaDataFile
+    public class MetaDataFile
     {
         public BipedRig modelBoneHumanoidAssignments;
         public float GlobalScale = -1;
@@ -16,7 +17,13 @@ namespace UnityPackageImporter
             
         }
 
-        public async Task ScanFile(string path, Slot ModelRootSlot)
+        //the second I tried to make this a yaml parser the parser broke. if anyone else can get it to work that's fine by me. - @989onan
+
+        //this creates our biped rig under the slot we specify. in this case, it is the root.
+        //it scans the file's metadata to make it work.
+        //this MetaDataFile object class gives us access to the biped rig component directly if desired
+        //but we're using it to also get our global scale.
+        public async Task ScanFile(FileImportTaskScene task, Slot ModelRootSlot)
         {
             //section identification
             int sectiontype = -1;
@@ -26,14 +33,16 @@ namespace UnityPackageImporter
             string boneNameHuman = string.Empty;
 
 
-            bool inScaleBlock = false;
-            
+            bool inScaleBlock1 = false;
+            bool inScaleBlock2 = false;
+            bool inScaleBlock3 = false;
+
             await default(ToWorld);
-            modelBoneHumanoidAssignments = ModelRootSlot.AttachComponent<BipedRig>();
+            this.modelBoneHumanoidAssignments = ModelRootSlot.AttachComponent<BipedRig>();
             await default(ToBackground);
 
-            UnityPackageImporter.Msg("Humanoid bone description being instanciated is: "+(modelBoneHumanoidAssignments == null));
-            foreach (string line in File.ReadLines(path))
+            UnityPackageImporter.Msg("Humanoid bone description being instanciated is: "+(modelBoneHumanoidAssignments != null));
+            foreach (string line in File.ReadLines(task.file + UnityPackageImporter.UNITY_META_EXTENSION))
             {
                 
                 if (line.StartsWith("  humanDescription:"))
@@ -42,19 +51,38 @@ namespace UnityPackageImporter
                     continue;
 
                 }
-                else if (line.StartsWith("    - name: Armature"))
+                else if (line.StartsWith("    skeleton:"))
                 {
-                    inScaleBlock = true;
+                    inScaleBlock1 = true;
 
                 }
-                if (inScaleBlock)
+                if (inScaleBlock1)
+                {
+                    if (line.StartsWith("    - name: "))
+                    {
+                        inScaleBlock1 = false;
+                        inScaleBlock2 = true;
+                        continue;
+                    }
+                }
+                if (inScaleBlock2)
+                {
+                    if (line.StartsWith("    - name: "))
+                    {
+                        inScaleBlock2 = false;
+                        inScaleBlock3 = true;
+                        
+                        
+                    }
+                }
+                if (inScaleBlock3)
                 {
                     if (line.StartsWith("      scale: "))
                     {
                         string numberStr = line.Split(':')[2].Split(',')[0].Trim();
-                        UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing and diving 1 by it to get our scale");
-                        GlobalScale = 1/float.Parse(numberStr);
-                        inScaleBlock = false;
+                        UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing to get our scale");
+                        GlobalScale = float.Parse(numberStr);
+                        inScaleBlock3 = false;
                     }
                 }
 
