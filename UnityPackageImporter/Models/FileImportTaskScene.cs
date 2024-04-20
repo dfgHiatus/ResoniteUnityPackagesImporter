@@ -10,7 +10,9 @@ using static FrooxEngine.ModelImporter;
 using MonoMod.Utils;
 using HashDepot;
 using UnityPackageImporter.FrooxEngineRepresentation;
-using System.Linq;
+using YamlDotNet.Serialization.NamingConventions;
+using YamlDotNet.Serialization;
+using YamlDotNet.Core;
 
 namespace UnityPackageImporter.Models
 {
@@ -23,6 +25,7 @@ namespace UnityPackageImporter.Models
         public string assetID;
         public Slot importTaskAssetSlot;
         public bool import_finished = false;
+        public MetaDataFile metafile;
 
         Slot targetSlot;
         public Slot FinishedFileSlot = null;
@@ -32,10 +35,11 @@ namespace UnityPackageImporter.Models
 
         public FileImportTaskScene(Slot targetSlot, string assetID, UnityProjectImporter importer, string file)
         {
-            this.targetSlot = targetSlot;
+            this.targetSlot = targetSlot.AddSlot(Path.GetFileNameWithoutExtension(file)+UnityPackageImporter.UNITY_PREFAB_EXTENSION);
+
             this.file = file;
             this.importer = importer;
-            this.importTaskAssetSlot = importer.importTaskAssetRoot.AddSlot("Assets - "+Path.GetFileName(file));
+            this.importTaskAssetSlot = importer.importTaskAssetRoot.AddSlot("Assets - "+ Path.GetFileNameWithoutExtension(file) + UnityPackageImporter.UNITY_PREFAB_EXTENSION);
 
 
             this.assetID = assetID;
@@ -56,6 +60,7 @@ namespace UnityPackageImporter.Models
 
         private async Task ImportFileMeshes()
         {
+
             UnityPackageImporter.Msg("Start code block for file import for file " + file);
             await default(ToWorld);
             AssimpContext assimpContext = new AssimpContext();
@@ -64,6 +69,9 @@ namespace UnityPackageImporter.Models
             assimpContext.SetConfig(new TangentSmoothingAngleConfig(10f));
             PostProcessSteps postProcessSteps = PostProcessSteps.JoinIdenticalVertices | PostProcessSteps.ImproveCacheLocality | PostProcessSteps.PopulateArmatureData | PostProcessSteps.GenerateUVCoords | PostProcessSteps.FindInstances | PostProcessSteps.FlipWindingOrder | PostProcessSteps.LimitBoneWeights;
             Assimp.Scene scene = null;
+            await default(ToBackground);
+
+            this.metafile = new MetaDataFile();
 
             UnityPackageImporter.Msg("Start assimp file import for file \"" + file+ "\" If your log stops here, then Assimp crashed like a drunk man and took the game with it.\"");
             FrooxEngineBootstrap.LogStream.Flush();
@@ -96,7 +104,7 @@ namespace UnityPackageImporter.Models
 
             UnityPackageImporter.Msg("retrieving scene root for file: " + file);
             FrooxEngineBootstrap.LogStream.Flush();
-            this.FinishedFileSlot = data.TryGetSlot(scene.RootNode); //get the slot by the import data to make sure we have what we imported.
+            this.FinishedFileSlot = this.targetSlot; //this is on purpose - @989onan
             UnityPackageImporter.Msg("recurisively searching for slots in file: " + file);
             FrooxEngineBootstrap.LogStream.Flush();
 
@@ -106,10 +114,10 @@ namespace UnityPackageImporter.Models
             {
                 FILEID_To_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(this.data, childofroot, data.TryGetSlot(childofroot), this.assetID));
             }
-            
 
-            
-            foreach(FrooxEngine.SkinnedMeshRenderer mesh in this.data.skinnedRenderers)
+
+
+            foreach (FrooxEngine.SkinnedMeshRenderer mesh in this.data.skinnedRenderers)
             {
                 string calculatedpath = "Type:SkinnedMeshRenderer->//RootNode/root/" + mesh.Slot.Name + "/SkinnedMeshRenderer0";//we are assuming all meshes are under the RootNode assimp makes.
                 long Calculated_fileid = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(calculatedpath));
@@ -126,15 +134,30 @@ namespace UnityPackageImporter.Models
                 await default(ToWorld);
                 UnityPackageImporter.Msg("finished waiting for mesh assets for: \"" + mesh.Slot.Name + "\"");
 
+                Dictionary<string, Slot> bonemappings = new Dictionary<string, Slot>();
+                foreach (var bone in skinnedrenderer.createdMeshRenderer.Mesh.Asset.Data.Bones)
+                {
+                    bonemappings.Add(bone.Name, this.FinishedFileSlot.FindChildInHierarchy(bone.Name));
+                }
+                skinnedrenderer.createdMeshRenderer.SetupBones(bonemappings);
+                skinnedrenderer.createdMeshRenderer.SetupBlendShapes();
+
+
+                skinnedrenderer.createdMeshRenderer.Materials.Clear();
+                //we will replace these missing ones later.
+                for (int j = 0; j < skinnedrenderer.createdMeshRenderer.Mesh.Asset.Data.SubmeshCount; j++)
+                {
+                    UnlitMaterial missingmat = this.importTaskAssetSlot.FindChildOrAdd("Missing Material").GetComponentOrAttach<UnlitMaterial>();
+                    missingmat.TintColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
+                    skinnedrenderer.createdMeshRenderer.Materials.Add().Target = missingmat;
+                }
+
+
                 SourceObj identifier = new SourceObj();
                 identifier.fileID = Calculated_fileid;
                 identifier.guid = this.assetID;
                 FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
             }
-
-
-
-
 
 
 
@@ -179,6 +202,10 @@ namespace UnityPackageImporter.Models
             FrooxEngineRepresentation.GameObjectTypes.GameObject calclatedobj = new FrooxEngineRepresentation.GameObjectTypes.GameObject();
             calclatedobj.instanciated = true;
             calclatedobj.frooxEngineSlot = curnode;
+            calclatedobj.m_CorrespondingSourceObject = new SourceObj();
+            calclatedobj.m_CorrespondingSourceObject.fileID = Calculated_fileid;
+            calclatedobj.m_CorrespondingSourceObject.guid = assetID;
+            calclatedobj.m_CorrespondingSourceObject.type = -1;
 
             SourceObj identifier1 = new SourceObj();
             identifier1.fileID = Calculated_fileid;
@@ -190,6 +217,10 @@ namespace UnityPackageImporter.Models
             long Calculated_fileidtransform = (long)XXHash.Hash64(Encoding.UTF8.GetBytes(transformpath));
             FrooxEngineRepresentation.GameObjectTypes.Transform calclatedTransformobj = new FrooxEngineRepresentation.GameObjectTypes.Transform();
             calclatedTransformobj.parentHashedGameObj = calclatedobj;
+            calclatedTransformobj.m_CorrespondingSourceObject = new SourceObj();
+            calclatedTransformobj.m_CorrespondingSourceObject.fileID = Calculated_fileidtransform;
+            calclatedTransformobj.m_CorrespondingSourceObject.guid = assetID;
+            calclatedTransformobj.m_CorrespondingSourceObject.type = -1;
 
             UnityPackageImporter.Msg($"{Calculated_fileidtransform} was made from transform \"{curnode.Name}\" with path \"{transformpath}\"");
 

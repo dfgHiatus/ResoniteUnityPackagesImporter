@@ -1,11 +1,9 @@
 ﻿using FrooxEngine;
-using Leap.Unity;
 using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.Models;
-using YamlDotNet.Serialization.ObjectGraphVisitors;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -35,7 +33,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 if(m_CorrespondingSourceObject.guid == null)
                 {
                     frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
-                    frooxEngineSlot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
+                    frooxEngineSlot.SetParent(importer.CurrentStructureRootSlot, true); //let user managers not freak out that we're doing stuff in root.
                     frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
                 }
                 else
@@ -45,7 +43,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         if((prefab as PrefabInstance).PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject existingobject))
                         {
                             this.frooxEngineSlot = (existingobject as GameObject).frooxEngineSlot;
-                            this.instanciated = true;
                         }
 
 
@@ -71,10 +68,40 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             result.AppendLine("id: " + id.ToString());
             result.AppendLine("instanciated: " + instanciated.ToString());
             result.AppendLine("m_IsActive: "+ m_IsActive.ToString());
-            result.AppendLine("m_Name: " + m_Name.ToString());
-            result.AppendLine("frooxEngineSlot: " + frooxEngineSlot.ToString());
-            result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
-            result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
+            if(m_CorrespondingSourceObject != null)
+            {
+                result.AppendLine("m_CorrespondingSourceObject: " + m_CorrespondingSourceObject.ToString());
+                
+            }
+            else
+            {
+                result.AppendLine("m_CorrespondingSourceObject: null");
+            }
+            if (m_PrefabInstance != null)
+            {
+                result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToString());
+            }
+            else
+            {
+                result.AppendLine("m_PrefabInstance: null");
+            }
+
+            if (m_Name != null){
+                result.AppendLine("m_Name: " + m_Name.ToString());
+            }
+            else {
+                result.AppendLine("m_Name: null");
+            }
+            if (frooxEngineSlot != null)
+            {
+                result.AppendLine("frooxEngineSlot: " + frooxEngineSlot.ToString());
+            }
+            else
+            {
+                result.AppendLine("frooxEngineSlot: null");
+            }
+
+
 
             return result.ToString();
         }

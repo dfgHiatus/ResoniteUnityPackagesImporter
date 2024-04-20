@@ -1,16 +1,10 @@
-﻿using Assimp;
-using FrooxEngine;
-using Leap.Unity;
-using Microsoft.Cci;
+﻿using FrooxEngine;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.PerformanceData;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using UnityEngine;
 using UnityPackageImporter.Models;
-using static Oculus.Avatar.CAPI;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -115,7 +109,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
 
 
-                        //TODO: These are scaled wrong, causing the mesh to scale weirdly. Use  
+                        /*//TODO: These are scaled wrong, causing the mesh to scale weirdly. come back later to this. - @989onan
                         FoundMesh.ExplicitLocalBounds.Value =
                         Elements.Core.BoundingBox.CenterSize(
                             new Elements.Core.float3(
@@ -126,7 +120,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                             this.m_AABB.m_Extent["y"],
                             this.m_AABB.m_Extent["z"]
                             ));
-                        FoundMesh.BoundsComputeMethod.Value = SkinnedBounds.Explicit; //use Unity's skinned bounds methods. 
+                        FoundMesh.BoundsComputeMethod.Value = SkinnedBounds.Explicit; //use Unity's skinned bounds methods. */
                         await default(ToBackground);
 
                         Dictionary<string, Slot> bonemappings = new Dictionary<string, Slot>();
@@ -154,34 +148,51 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         UnityPackageImporter.Msg("setting up bones for model.");
                         FoundMesh.SetupBones(bonemappings);
                         await default(ToBackground);
-                        await default(ToWorld);
-                        UnityPackageImporter.Msg("clearing bad material objects for: \"" + FoundMesh.Slot.Name + "\"");
-                        FoundMesh.Materials.Clear();
-                        await default(ToBackground);
-
-                        UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
-                        for (int index = 0; index < this.m_Materials.Count(); index++)
+                        
+                        if (this.m_Materials != null)
                         {
-
-                            if (this.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask))
+                            if(this.m_Materials.Count > 0)
                             {
-                                try
+                                
+                                UnityPackageImporter.Msg("clearing bad material objects for: \"" + FoundMesh.Slot.Name + "\"");
+                                await default(ToWorld);
+                                FoundMesh.Materials.Clear();
+                                await default(ToBackground);
+
+                                UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
+                                for (int index = 0; index < this.m_Materials.Count(); index++)
                                 {
-                                    await default(ToWorld);
-                                    FoundMesh.Materials.Add().Target = await materialtask.runImportFileMaterialsAsync();
-                                    await default(ToBackground);
-                                }
-                                catch (Exception e)
-                                {
-                                    UnityPackageImporter.Msg("Could not attach material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from prefab data. It's probably not in the project or in the files you dragged over.");
-                                    UnityPackageImporter.Msg("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
-                                    UnityPackageImporter.Msg(e.Message);
-                                    await default(ToWorld);
-                                    FoundMesh.Materials.Add();
-                                    await default(ToBackground);
+
+                                    if (this.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask))
+                                    {
+                                        try
+                                        {
+                                            await default(ToWorld);
+                                            FoundMesh.Materials.Add().Target = await materialtask.runImportFileMaterialsAsync();
+                                            await default(ToBackground);
+                                        }
+                                        catch (Exception e)
+                                        {
+                                            UnityPackageImporter.Warn("Could not attach material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from skinned mesh renderer data. It's probably not in the project or in the files you dragged over.");
+                                            UnityPackageImporter.Warn("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
+                                            UnityPackageImporter.Warn(e.Message);
+                                            await default(ToWorld);
+                                            FoundMesh.Materials.Add();
+                                            await default(ToBackground);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        UnityPackageImporter.Warn("Could not find material task for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from skinned mesh renderer data. It's probably not in the project or in the files you dragged over.");
+                                        await default(ToWorld);
+                                        FoundMesh.Materials.Add();
+                                        await default(ToBackground);
+                                    }
                                 }
                             }
                         }
+
+                       
 
                         
 
@@ -190,7 +201,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         FoundMesh.SetupBlendShapes();
                         await default(ToBackground);
 
-                        UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + FoundMesh.Slot.Name + "\" imported for prefab!");
+                        UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + FoundMesh.Slot.Name + "\" imported!");
                     }
                 }
 
@@ -210,10 +221,40 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             StringBuilder result = new StringBuilder();
             result.AppendLine("id: " + id.ToString());
             result.AppendLine("instanciated: " + instanciated.ToString());
-            result.AppendLine("parentobj: " + parentobj.ToString());
-            result.AppendLine("createdMeshRenderer" + createdMeshRenderer.ToString());
-            result.AppendLine("m_CorrespondingSourceObject" + m_CorrespondingSourceObject.ToString());
-            result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToArrayString());
+            if (parentobj != null)
+            {
+                result.AppendLine("parentobj: " + parentobj.ToString());
+            }
+            else
+            {
+                result.AppendLine("parentobj: null");
+            }
+            if (m_CorrespondingSourceObject != null)
+            {
+                result.AppendLine("m_CorrespondingSourceObject: " + m_CorrespondingSourceObject.ToString());
+
+            }
+            else
+            {
+                result.AppendLine("m_CorrespondingSourceObject: null");
+            }
+            if (m_PrefabInstance != null)
+            {
+                result.AppendLine("m_PrefabInstance: " + m_PrefabInstance.ToString());
+            }
+            else
+            {
+                result.AppendLine("m_PrefabInstance: null");
+            }
+            if (createdMeshRenderer != null)
+            {
+                result.AppendLine("createdMeshRenderer" + createdMeshRenderer.ToString());
+            }
+            else
+            {
+                result.AppendLine("createdMeshRenderer: null");
+            }
+            
             return base.ToString();
         }
 

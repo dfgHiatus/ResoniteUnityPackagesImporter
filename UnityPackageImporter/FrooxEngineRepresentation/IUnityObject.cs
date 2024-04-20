@@ -28,9 +28,122 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();
-            result.AppendLine("fileID: " + fileID.ToString());
-            result.AppendLine("guid: " + guid.ToString());
-            result.AppendLine("type: " + type.ToString());
+            try
+            {
+                result.AppendLine("fileID: " + fileID.ToString());
+            }
+            catch
+            {
+                result.AppendLine("fileID: null");
+
+            }
+            try
+            {
+                result.AppendLine("guid: " + guid.ToString());
+            }
+            catch
+            {
+                result.AppendLine("guid: null");
+
+            }
+            try
+            {
+                result.AppendLine("type: " + type.ToString());
+            }
+            catch
+            {
+                result.AppendLine("type: null");
+
+            }
+            
+            return result.ToString();
+        }
+    }
+
+    public class ModsPrefab
+    {
+        public SourceObj target;
+        public string propertyPath;
+        public string value;
+        public Dictionary<string, string> objectReference;
+
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder();
+            if (target != null)
+            {
+                result.AppendLine("target: " + target.ToString());
+            }
+            else
+            {
+                result.AppendLine("target: null");
+            }
+            if (propertyPath != null)
+            {
+                result.AppendLine("propertyPath: " + propertyPath.ToString());
+            }
+            else
+            {
+                result.AppendLine("propertyPath: null");
+            }
+            if (value != null)
+            {
+                result.AppendLine("value: " + value.ToString());
+            }
+            else
+            {
+                result.AppendLine("value: null");
+            }
+            if (objectReference != null)
+            {
+                foreach (var pair in objectReference)
+                {
+                    result.AppendLine("objectReference+Item: (" + pair.Key.ToString() + ", " + pair.Value.ToString());
+                }
+            }
+            else
+            {
+                result.AppendLine("objectReference: null");
+            }
+            return result.ToString();
+        }
+    }
+
+    public class ModPrefab
+    {
+        public Dictionary<string, ulong> m_TransformParent;
+        public List<ModsPrefab> m_Modifications;
+        public List<string> m_RemovedComponents;
+
+        public override string ToString()
+        {
+            StringBuilder result = new StringBuilder();
+            if (m_TransformParent != null)
+            {
+                foreach(var pair in m_TransformParent)
+                {
+                    result.AppendLine("m_TransformParent+Item: (" + pair.Key.ToString() +", "+pair.Value.ToString());
+                }
+                
+
+            }
+            else
+            {
+                result.AppendLine("m_TransformParent: null");
+            }
+            
+            if (m_Modifications != null)
+            {
+                foreach (var pair in m_Modifications)
+                {
+                    result.AppendLine("m_Modifications+Item: " + pair.ToString());
+                }
+
+            }
+            else
+            {
+                result.AppendLine("m_Modification: null");
+            }
             return result.ToString();
         }
     }

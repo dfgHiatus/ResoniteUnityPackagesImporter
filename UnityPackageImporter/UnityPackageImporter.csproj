@@ -63,17 +63,11 @@
     <Reference Include="Assembly">
       <HintPath>$(GamePath)Resonite_Data/Managed/Assembly-CSharp.dll</HintPath>
     </Reference>
-    <Reference Include="UnityEngine">
-      <HintPath>$(GamePath)Resonite_Data/Managed/UnityEngine.dll</HintPath>
-    </Reference>
     <Reference Include="UnityFrooxEngineRunner">
       <HintPath>$(GamePath)Resonite_Data/Managed/UnityFrooxEngineRunner.dll</HintPath>
     </Reference>
     <Reference Include="FrooxEngine">
       <HintPath>$(GamePath)Resonite_Data/Managed/FrooxEngine.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(GamePath)Resonite_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="FrooxEngine.Store">
       <HintPath>$(GamePath)Resonite_Data/Managed\FrooxEngine.Store.dll</HintPath>
