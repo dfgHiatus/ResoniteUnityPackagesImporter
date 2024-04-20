@@ -9,8 +9,6 @@ using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
-
-    [Serializable]
     public class Transform: IUnityObject
     {
         
@@ -53,6 +51,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     if (importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject PrefabInstanceObject))
                     {
                         PrefabInstance prefab = PrefabInstanceObject as PrefabInstance;
+                        await default(ToWorld);
+                        await prefab.instanciateAsync(importer);
+                        await default(ToBackground);
 
                         if (prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject targetObj)) {
 
@@ -68,7 +69,44 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                                 
 
+                                foreach (IUnityObject variab in importer.existingIUnityObjects.Values)
+                                {
+                                    if(variab.GetType() == typeof(GameObject))
+                                    {
+                                        GameObject actual = variab as GameObject;
+                                        if(actual.m_CorrespondingSourceObject != null)
+                                        {
+                                            if(actual.m_CorrespondingSourceObject.fileID != 0)
+                                            {
+                                                if (actual.m_CorrespondingSourceObject.fileID == alreadydefined.parentHashedGameObj.m_CorrespondingSourceObject.fileID
+                                                    && actual.m_CorrespondingSourceObject.guid.Equals(alreadydefined.parentHashedGameObj.m_CorrespondingSourceObject.guid)
+                                                    )
+                                                {
+                                                    this.parentHashedGameObj = actual;
+                                                }
+                                            }
+                                        }
+
+                                    }
+
+                                }
+
+                                await default(ToWorld);
                                 await this.parentHashedGameObj.instanciateAsync(importer);
+                                await default(ToBackground);
+                                if (this.parentHashedGameObj.id == alreadydefined.parentHashedGameObj.id)
+                                {
+                                    try
+                                    {
+                                        UnityPackageImporter.Warn("The inline prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" and a target game object id of \"" + alreadydefined.parentHashedGameObj + "\"did not find it's parent transform's game object! this will split your import in half heiarchy wise! This should never happen!");
+                                    }
+                                    catch
+                                    {
+                                        UnityPackageImporter.Warn("The inline prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" and a guid of \"null\"did not find it's parent transform's game object! this will split your import in half heiarchy wise! This should never happen!");
+                                    }
+                                }
+
+
 
                                 this.m_GameObject = new Dictionary<string, ulong>
                                 {
@@ -104,10 +142,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
         private async Task createSelf(IUnityStructureImporter importer)
         {
+            m_FatherID = m_Father["fileID"];
+            m_GameObjectID = m_GameObject["fileID"];
             if (importer.existingIUnityObjects.TryGetValue(m_GameObjectID, out IUnityObject foundobject) && foundobject.GetType() == typeof(GameObject))
             {
-                m_FatherID = m_Father["fileID"];
-                m_GameObjectID = m_GameObject["fileID"];
+                
+                
                 GameObject parentobj;
                 parentobj = foundobject as GameObject;
                 await parentobj.instanciateAsync(importer);
@@ -143,6 +183,13 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 }
                 else
                 {
+                    //this is to solve a problem where the root of prefabs can be called 
+                    if(m_FatherID == 0)
+                    {
+                        parentobj.frooxEngineSlot.Name = "RootNode";
+                    }
+                    
+
 
                     UnityPackageImporter.Warn("Slot did not find it's parent. If there is more than one of these messages in an import then that is bad! Transform id: " + m_FatherID.ToString());
                 }
@@ -198,6 +245,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             return result.ToString();
         }
 
+        public TransformFloat4()
+        {
+        }
         public TransformFloat4(float x, float y, float z, float w)
         {
             this.x = x;
@@ -210,6 +260,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
     public class TransformFloat3
     {
+        public TransformFloat3()
+        {
+        }
         public float x;
         public float y;
         public float z;

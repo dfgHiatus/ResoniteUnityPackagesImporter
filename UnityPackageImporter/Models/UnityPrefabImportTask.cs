@@ -52,7 +52,7 @@ namespace UnityPackageImporter.Models
 
                 var deserializer = new DeserializerBuilder().WithNodeTypeResolver(noderesolver)
                     .IgnoreUnmatchedProperties()
-                    .WithNamingConvention(NullNamingConvention.Instance)//outta here with that crappy conversion!!!! We got unity crap we deal with unity crap. - @989onan
+                    //.WithNamingConvention(NullNamingConvention.Instance)//outta here with that crappy conversion!!!! We got unity crap we deal with unity crap. - @989onan
                     .Build();
                 using var sr = File.OpenText(ID.Value);
                 var parser = new Parser(sr);
@@ -74,11 +74,12 @@ namespace UnityPackageImporter.Models
                                                           //since deserializing happens before adding to the list and those are done syncronously with each other, it is fine.
                             existingIUnityObjects.Add(doc.id, doc);
                         }
-                        catch
+                        catch (Exception e)
                         {
 
                             try
                             {
+                                
                                 IUnityObject doc = new FrooxEngineRepresentation.GameObjectTypes.NullType();
                                 doc.id = noderesolver.anchor;
                                 existingIUnityObjects.Add(doc.id, doc);
@@ -88,6 +89,7 @@ namespace UnityPackageImporter.Models
                                 UnityPackageImporter.Msg("Duplicate key probably for Prefab\"" + ID.Value + "\"just ignore this.");
                                 UnityPackageImporter.Warn(e2.Message + e2.StackTrace);
                             }
+                            throw e;
 
                         }
                     }
@@ -95,6 +97,7 @@ namespace UnityPackageImporter.Models
                     {
                         UnityPackageImporter.Msg("Couldn't evaluate node type for Prefab\"" + ID.Value + "\". stacktrace below");
                         UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                        throw e; //TODO: REMOVE
                     }
 
 
@@ -165,6 +168,7 @@ namespace UnityPackageImporter.Models
                 UnityPackageImporter.Msg("Yaml generation done");
                 UnityPackageImporter.Msg("Setting up IK Inline");
 
+                
                 //create humanoid stuff for prefabs that are inline.
                 await default(ToWorld);
                 foreach (var obj in existingIUnityObjects)
@@ -208,6 +212,8 @@ namespace UnityPackageImporter.Models
             {
                 UnityPackageImporter.Warn("Prefab hit critical import error! dumping!");
                 UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                UnityPackageImporter.Msg(debugPrefab.ToString());
+                throw e;
             }
 
 

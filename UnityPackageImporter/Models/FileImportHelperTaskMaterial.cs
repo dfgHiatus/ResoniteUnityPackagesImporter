@@ -25,12 +25,12 @@ namespace UnityPackageImporter.Models
         public FileImportHelperTaskMaterial(string myID, string file, UnityProjectImporter importer)
         {
             this.importer = importer;
-
+            this.file = file;
             UnityPackageImporter.Msg("Importing material with ID: \""+myID+"\"");
             UnityPackageImporter.Msg("and a file of: \"" + this.file + "\"");
             UnityPackageImporter.Msg("and a slot assets root of " + importer.importTaskAssetRoot.ToString());
             assetsRoot = importer.importTaskAssetRoot;
-            matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(file) + " - Material");
+            matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(this.file) + " - Material");
             UnityPackageImporter.Msg("and a mat slot of " + matslot.ToString());
             this.myID = myID;
         }

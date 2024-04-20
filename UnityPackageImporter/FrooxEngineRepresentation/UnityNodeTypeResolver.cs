@@ -21,7 +21,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 
                 if (!int.TryParse(nodeEvent.Tag.Value.Replace(UnityTagPrefix, ""), out unityObjectId))
                     return false;
-                anchor = ulong.Parse(nodeEvent.Anchor.Value.Replace("stripped", "").Trim());
+                anchor = ulong.Parse(nodeEvent.Anchor.Value);
                 currentType = typeof(UnityEngineObjectWrapper);
                 return true;
 

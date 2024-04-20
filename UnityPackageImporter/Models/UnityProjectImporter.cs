@@ -21,7 +21,6 @@ namespace UnityPackageImporter
 
         public ReadOnlyDictionary<string, string> ListOfMetas;
         public readonly Slot importTaskAssetRoot;
-        public ReadOnlyDictionary<ulong, string> MeshRendererID_To_FileGUID;
         public List<FileImportHelperTaskMaterial> TasksMaterials = new List<FileImportHelperTaskMaterial>();
         
 
@@ -129,7 +128,11 @@ namespace UnityPackageImporter
         public static async Task SettupHumanoid(FileImportTaskScene task, Slot FBXRoot)
         {
             UnityPackageImporter.Msg("checking if this FBX is a humanoid");
-            await task.metafile.ScanFile(task, FBXRoot);
+            Slot taskSlot = FBXRoot;
+
+            await task.metafile.ScanFile(task, taskSlot); //we have to scan again here, since the slots may have changed names.
+            await task.metafile.GenerateComponents(taskSlot);
+
             bool isBiped = task.metafile.modelBoneHumanoidAssignments.IsBiped;
 
             //EXPLAINATION OF THIS CODE:
@@ -139,7 +142,7 @@ namespace UnityPackageImporter
             if (isBiped) {
 
                 await default(ToWorld);
-                Slot taskSlot = FBXRoot;
+                
                 Rig rig = taskSlot.GetComponent<Rig>();
                 if (rig == null)
                 {
@@ -149,11 +152,6 @@ namespace UnityPackageImporter
                 }
                 await default(ToBackground); 
 
-
-                await default(ToWorld);
-                var foundvrik = null != taskSlot.GetComponent(typeof(VRIK));
-                await default(ToBackground);
-
                 
 
 
@@ -161,7 +159,7 @@ namespace UnityPackageImporter
 
                 await default(ToWorld);
                 UnityPackageImporter.Msg("Finding if we set up VRIK and are biped.");
-                if (!foundvrik && (isBiped))
+                if (isBiped)
                 {
                     UnityPackageImporter.Msg("We have not set up vrik!");
 
