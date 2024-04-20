@@ -1,24 +1,42 @@
-﻿using System;
+﻿using FrooxEngine;
+using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 
 namespace UnityPackageImporter;
 
-internal class Utils
+internal static class Utils
 {
+    private static readonly MD5 hasher = MD5.Create();
+
     internal static bool ContainsUnicodeCharacter(string input)
     {
         const int MaxAnsiCode = 255;
         return input.Any(c => c > MaxAnsiCode);
     }
 
-    // Credit to delta for this method https://github.com/XDelta/
     internal static string GenerateMD5(string filepath)
     {
-        var hasher = MD5.Create();
+        // Credit to delta for this method https://github.com/XDelta/
         var stream = File.OpenRead(filepath);
         var hash = hasher.ComputeHash(stream);
         return BitConverter.ToString(hash).Replace("-", "");
+    }
+
+    internal static ColliderType GetColliderFromULong(ulong @ulong)
+    {
+        switch (@ulong)
+        {
+            case 1:
+                return ColliderType.Trigger;
+            default:
+                return ColliderType.Static;
+        }
+    }
+
+    internal static bool GetBoolFromULong(ulong IsEnabled)
+    {
+        return IsEnabled == 1;
     }
 }
