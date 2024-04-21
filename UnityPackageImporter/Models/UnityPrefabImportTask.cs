@@ -6,10 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.FrooxEngineRepresentation;
-using YamlDotNet.Serialization;
-using YamlDotNet.Core;
-using YamlDotNet.Core.Events;
-using YamlDotNet.Serialization.NamingConventions;
+
 
 namespace UnityPackageImporter.Models
 {
@@ -41,84 +38,16 @@ namespace UnityPackageImporter.Models
                 this.CurrentStructureRootSlot.SetParent(this.allimportsroot, false);
                 this.CurrentStructureRootSlot.PositionInFrontOfUser(null, null, 0.7f, null, false, false, true);
                 await default(ToBackground);
-                //begin the parsing of our prefabs.
-
-                //parse loop
-                //now using the power of yaml we can make this a bit more reliable and hopefully smaller.
-                //reading unity prefabs as yaml allows us to much more easily obtain the data we need.
-                //Unity yamls are different, but with a little trickery we can still read them with a library.
-
-                UnityNodeTypeResolver noderesolver = new UnityNodeTypeResolver();
-
-                var deserializer = new DeserializerBuilder().WithNodeTypeResolver(noderesolver)
-                    .IgnoreUnmatchedProperties()
-                    //.WithNamingConvention(NullNamingConvention.Instance)//outta here with that crappy conversion!!!! We got unity crap we deal with unity crap. - @989onan
-                    .Build();
-                using var sr = File.OpenText(ID.Value);
-                var parser = new Parser(sr);
-
-                
-                parser.Consume<StreamStart>();
-                DocumentStart variable;
-                while (parser.Accept<DocumentStart>(out variable) == true)
-                {
-                    // Deserialize the document
-                    try
-                    {
-                        try
-                        {
-
-                            UnityEngineObjectWrapper docWrapped = deserializer.Deserialize<UnityEngineObjectWrapper>(parser);
-                            IUnityObject doc = docWrapped.Result();
-                            doc.id = noderesolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
-                                                          //since deserializing happens before adding to the list and those are done syncronously with each other, it is fine.
-                            existingIUnityObjects.Add(doc.id, doc);
-                        }
-                        catch (Exception e)
-                        {
-
-                            try
-                            {
-                                
-                                IUnityObject doc = new FrooxEngineRepresentation.GameObjectTypes.NullType();
-                                doc.id = noderesolver.anchor;
-                                existingIUnityObjects.Add(doc.id, doc);
-                            }
-                            catch (ArgumentException e2)
-                            {/*idc.*/
-                                UnityPackageImporter.Msg("Duplicate key probably for Prefab\"" + ID.Value + "\"just ignore this.");
-                                UnityPackageImporter.Warn(e2.Message + e2.StackTrace);
-                            }
-                            throw e;
-
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        UnityPackageImporter.Msg("Couldn't evaluate node type for Prefab\"" + ID.Value + "\". stacktrace below");
-                        UnityPackageImporter.Warn(e.Message + e.StackTrace);
-                        throw e; //TODO: REMOVE
-                    }
 
 
 
-                }
+
+                this.existingIUnityObjects  = YamlToFrooxEngine.parseYaml(this.ID.Value);
 
                 //some debugging for the user to show them it worked or failed.
 
-                UnityPackageImporter.Msg("Loaded " + existingIUnityObjects.Count.ToString() + " Unity objects/components/meshes for scene!");
+                UnityPackageImporter.Msg("Loaded " + existingIUnityObjects.Count.ToString() + " Unity objects/components/meshes for prefab!");
 
-                //instanciate inline prefabs first, since those have modifications to other already instanciated objects and would get complicated otherwise.
-                await default(ToWorld);
-                foreach (var obj in existingIUnityObjects)
-                {
-                    if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.PrefabInstance))
-                    {
-                        await obj.Value.instanciateAsync(this);
-                        debugPrefab.Append(obj.Value.ToString());
-                    }
-                }
-                await default(ToBackground);
 
                 //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
                 await default(ToWorld);
@@ -184,23 +113,35 @@ namespace UnityPackageImporter.Models
                 }
 
                 UnityPackageImporter.Msg("Setting up IK Root");
-                await default(ToBackground);
                 foreach (var obj in existingIUnityObjects)
                 {
                     if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer))
                     {
+
+                        FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newobj = (obj.Value as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
+                        await default(ToWorld);
+                        newobj.createdMeshRenderer.Enabled = newobj.m_Enabled == 1;
+                        await default(ToBackground);
+                    }
+                }
+
+                foreach (var obj in existingIUnityObjects)
+                {
+                    if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer))
+                    {
+                        
                         FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newobj = (obj.Value as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
                         if (newobj.parentobj.frooxEngineSlot.Parent.Name == "RootNode")
                         {
                             if (this.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(newobj.m_Mesh.guid, out FileImportTaskScene importedfbx)) {
+                                await default(ToWorld);
                                 await UnityProjectImporter.SettupHumanoid(importedfbx, this.CurrentStructureRootSlot);
+                                await default(ToBackground);
                                 break; //all skinned mesh renderers should go to the current prefab if they're under the root. I think that is the root above in the if statement with "RootNode" - @989onan
                             }
                             else
                             {
-                                UnityPackageImporter.Warn("This is not good, the prefab with the name \"" + "\" cannot find it's source file for a skinned mesh renderer! Stacktrace:");
-                                UnityPackageImporter.Warn("\"" + newobj.parentobj.frooxEngineSlot.Parent.Name + "\" == \"RootNode = \"" + (newobj.parentobj.frooxEngineSlot.Parent.Name == "RootNode") + "\"");
-                                UnityPackageImporter.Warn("Skinned Mesh Renderer: " + newobj.ToString());
+                                UnityPackageImporter.Msg("A prefab (source fbx id: \"" + newobj.m_Mesh.guid + "\") in prefab \"" + this.ID.Value + "\" that probably points to another prefab was attempted to be imported. TODO: FIX THIS");//TODO: FIX THIS!
                             }
 
                         }
@@ -213,7 +154,7 @@ namespace UnityPackageImporter.Models
                 UnityPackageImporter.Warn("Prefab hit critical import error! dumping!");
                 UnityPackageImporter.Warn(e.Message + e.StackTrace);
                 UnityPackageImporter.Msg(debugPrefab.ToString());
-                throw e;
+                FrooxEngineBootstrap.LogStream.Flush();
             }
 
 

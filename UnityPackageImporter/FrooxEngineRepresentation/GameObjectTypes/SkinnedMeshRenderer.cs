@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.Models;
+using static HarmonyLib.Code;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -27,7 +28,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public AABB m_AABB;
 
 
-
         public async Task instanciateAsync(IUnityStructureImporter importer)
         {
 
@@ -41,7 +41,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     if (importer.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(m_Mesh.guid, out FileImportTaskScene importedfbx2))
                     {
                         
-                        if(m_GameObject != null)
+                        if(m_CorrespondingSourceObject.guid == null)
                         {
                             importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc);
                             parentobj = parentobj_inc as GameObject;
@@ -116,8 +116,22 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 }
                 catch (Exception ex)
                 {
-                    UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render couldn't find it's parent an id of \"" + m_GameObject["fileID"].ToString() + "\" Your renderer will come out mis-shapen!");
-                    UnityPackageImporter.Warn(ex.Message,ex.StackTrace);
+                    try
+                    {
+                        UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render couldn't find it's parent an id of \"" + m_GameObject["fileID"].ToString() + "\" Your renderer will come out mis-shapen!");
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render couldn't find it's parent a source obj of \"" + m_CorrespondingSourceObject.ToString() + "\" Your renderer will come out mis-shapen!");
+                        }
+                        catch
+                        {
+                            UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render does not have a valid parent obj type! Your renderer will come out mis-shapen!");
+                        }
+                    }
+                    UnityPackageImporter.Warn(ex.Message, ex.StackTrace);
                 }
 
 
@@ -182,8 +196,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         //UnityPackageImporter.Msg("Waiting for mesh assets for: \"" + mesh.Slot.Name + "\"");
                     }
                     await default(ToWorld);
-                    FoundMesh.Enabled = this.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported;
-
+                    //below comment is done at the humanoid stage, so that shite doesn't get in the way of players - @989onan
+                    //FoundMesh.Enabled = this.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported;
+                    FoundMesh.Enabled = false;
 
 
                     /*//TODO: These are scaled wrong, causing the mesh to scale weirdly. come back later to this, maybe?. - @989onan

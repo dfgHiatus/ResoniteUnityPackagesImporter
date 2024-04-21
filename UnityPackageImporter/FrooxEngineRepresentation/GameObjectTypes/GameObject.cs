@@ -20,8 +20,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
         public Slot frooxEngineSlot;
 
-        public GameObject() {
-        }
 
 
         public async Task instanciateAsync(IUnityStructureImporter importer)
@@ -38,12 +36,13 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 }
                 else
                 {
-                    if(importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject prefab))
+                    if(importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject prefab_inc))
                     {
+                        PrefabInstance prefab = prefab_inc as PrefabInstance;
                         await default(ToWorld);
                         await prefab.instanciateAsync(importer);
                         await default(ToBackground);
-                        if ((prefab as PrefabInstance).PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject existingobject))
+                        if (prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject existingobject))
                         {
                             this.frooxEngineSlot = (existingobject as GameObject).frooxEngineSlot;
                         }

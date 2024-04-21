@@ -14,6 +14,7 @@ using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.FrooxEngineRepresentation;
 using UnityPackageImporter.Models;
+using static FrooxEngine.MeshUploadHint;
 
 
 namespace UnityPackageImporter
@@ -39,7 +40,6 @@ namespace UnityPackageImporter
         
         public ReadOnlyDictionary<string, string> ListOfPrefabs;
 
-        public Slot CurrentSceneSlot { get; set; }
 
         public UnityProjectImporter(IEnumerable<string> files, Dictionary<string, string> AssetIDDict, Dictionary<string, string> ListOfPrefabs, Dictionary<string, string> ListOfMetas, Dictionary<string, string> ListOfUnityScenes, Slot root, Slot assetsRoot)
         {
@@ -246,14 +246,39 @@ namespace UnityPackageImporter
 
                     UnityPackageImporter.Msg("attaching VRIK");
                     await default(ToWorld);
-                    VRIK vrik = taskSlot.AttachComponent<VRIK>();
+                    
                     await default(ToBackground);
                     UnityPackageImporter.Msg("Initializing VRIK");
                     await default(ToWorld);
-                    vrik.Solver.SimulationSpace.Target = taskSlot.Parent;
-                    vrik.Solver.OffsetSpace.Target = taskSlot.Parent;
-                    vrik.Initiate(); //create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot, 
+                    Grabbable componentInParents = rootnode.GetComponentInParents<Grabbable>(null, true, false);
+                    if (componentInParents != null)
+                    {
+                        componentInParents.Destroy();
+                    }
+                    VRIK vrik = rootnode.AttachComponent<VRIK>(true, null);
+                    vrik.Solver.SimulationSpace.Target = rootnode.Parent;
+                    vrik.Solver.OffsetSpace.Target = rootnode.Parent;
+                    vrik.Initiate();//create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot.
+
+                    //set our ik draggables up so people can play with the model and know it worked. - @989onan
+                    //ps, stolen from FrooxEngine decompiled code.
+                    Slot slot3 = task.metafile.modelBoneHumanoidAssignments[BodyNode.Head];
+                    Slot slot4 = task.metafile.modelBoneHumanoidAssignments[BodyNode.Hips];
+                    Slot slot5 = task.metafile.modelBoneHumanoidAssignments[BodyNode.LeftHand];
+                    Slot slot6 = task.metafile.modelBoneHumanoidAssignments[BodyNode.RightHand];
+                    Slot slot7 = task.metafile.modelBoneHumanoidAssignments[BodyNode.LeftFoot];
+                    Slot slot8 = task.metafile.modelBoneHumanoidAssignments[BodyNode.RightFoot];
+                    Slot slot9 = task.metafile.modelBoneHumanoidAssignments.TryGetBone(BodyNode.LeftToes);
+                    Slot slot10 = task.metafile.modelBoneHumanoidAssignments.TryGetBone(BodyNode.RightToes);
+                    ModelImporter.SetupDraggable(slot3, vrik.Solver, vrik.Solver.spine.IKPositionHead, vrik.Solver.spine.IKRotationHead, vrik.Solver.spine.PositionWeight);
+                    ModelImporter.SetupDraggable(slot4, vrik.Solver, vrik.Solver.spine.IKPositionPelvis, vrik.Solver.spine.IKRotationPelvis, vrik.Solver.spine.PelvisPositionWeight);
+                    ModelImporter.SetupDraggable(slot5, vrik.Solver, vrik.Solver.leftArm.IKPosition, vrik.Solver.leftArm.IKRotation, vrik.Solver.leftArm.PositionWeight);
+                    ModelImporter.SetupDraggable(slot6, vrik.Solver, vrik.Solver.rightArm.IKPosition, vrik.Solver.rightArm.IKRotation, vrik.Solver.rightArm.RotationWeight);
+                    ModelImporter.SetupDraggable(slot9 ?? slot7, vrik.Solver, vrik.Solver.leftLeg.IKPosition, vrik.Solver.leftLeg.IKRotation, vrik.Solver.leftLeg.PositionWeight);
+                    ModelImporter.SetupDraggable(slot10 ?? slot8, vrik.Solver, vrik.Solver.rightLeg.IKPosition, vrik.Solver.rightLeg.IKRotation, vrik.Solver.rightLeg.PositionWeight);
                     taskSlot.AttachComponent<DestroyRoot>();
+                    DynamicVariableSpace avatar = taskSlot.AttachComponent<DynamicVariableSpace>();
+                    avatar.SpaceName.Value = "Avatar"; //hehe random bias, go! - @989onan
                     taskSlot.AttachComponent<ObjectRoot>();
                     await default(ToBackground);
                 }

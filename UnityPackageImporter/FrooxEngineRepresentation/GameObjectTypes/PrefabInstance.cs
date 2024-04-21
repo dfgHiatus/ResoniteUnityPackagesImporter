@@ -12,15 +12,15 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public bool instanciated { get; set; }
         public ulong id { get; set; }
 
-        public int m_ObjectHideFlags = 1000;
-        public int serializedVersion = 1000;
+        public int m_ObjectHideFlags { get; set; }
+        public int serializedVersion { get; set; }
 
         public SourceObj m_CorrespondingSourceObject { get; set; }
         public SourceObj m_SourcePrefab { get; set; }
 
-        public GameObject ImportRoot;
+        public GameObject ImportRoot { get; set; }
 
-        public ModPrefab m_Modification;
+        public ModPrefab m_Modification { get; set; }
 
         public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 

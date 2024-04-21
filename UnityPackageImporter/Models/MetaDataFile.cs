@@ -5,7 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using UnityPackageImporter.FrooxEngineRepresentation;
 using UnityPackageImporter.Models;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NodeDeserializers;
 using static FrooxEngine.Rig;
 
 namespace UnityPackageImporter
@@ -14,6 +17,8 @@ namespace UnityPackageImporter
     {
         public BipedRig modelBoneHumanoidAssignments;
         public float GlobalScale = -1;
+
+        public Dictionary<string, SourceObj> externalObjects = new Dictionary<string, SourceObj>();
 
         private Dictionary<BodyNode, Slot> storagebones = new Dictionary<BodyNode, Slot>();
 
@@ -83,11 +88,8 @@ namespace UnityPackageImporter
             string boneNameHuman = string.Empty;
 
 
-            bool inScaleBlock1 = false;
-            bool inScaleBlock2 = false;
-            bool inScaleBlock3 = false;
+            string externalObjects_name = string.Empty;
 
-            
             foreach (string line in File.ReadLines(task.file + UnityPackageImporter.UNITY_META_EXTENSION))
             {
                 
@@ -102,7 +104,7 @@ namespace UnityPackageImporter
                     continue;
                 }
                 if(line.StartsWith("  externalObjects:")){
-                    sectiontype = -1;
+                    sectiontype = 2;
                     continue;
                 }
 
@@ -111,36 +113,6 @@ namespace UnityPackageImporter
                     sectiontype = 0;
                     continue;
 
-                }
-                else if (line.StartsWith("    skeleton:"))
-                {
-                    inScaleBlock1 = true;
-
-                }
-                if (inScaleBlock1)
-                {
-                    if (line.StartsWith("    - name: "))
-                    {
-                        inScaleBlock1 = false;
-                        inScaleBlock2 = true;
-                        continue;
-                    }
-                }
-                if (inScaleBlock2)
-                {
-                    if (line.StartsWith("    - name: "))
-                    {
-                        inScaleBlock2 = false;
-                        inScaleBlock3 = true;
-                        continue;
-
-                    }
-                }
-                if (inScaleBlock3)
-                {
-                    //this gets armature scale.
-                    inScaleBlock3 = false;
-                    continue;
                 }
                 if (line.StartsWith("    globalScale:"))
                 {
@@ -154,7 +126,6 @@ namespace UnityPackageImporter
                     {
                         GlobalScale = 1;
                     }
-                    inScaleBlock3 = false;
                     continue;
                 }
 
@@ -206,7 +177,31 @@ namespace UnityPackageImporter
                         fileIDToRecycleName.Add(num, name);
 
                         break;
+                    case 2:
+                        if(line.StartsWith("  - first:"))
+                        {
+                            externalObjects_name = string.Empty;
 
+                        }
+                        if(line.StartsWith("      name:"))
+                        {
+                            externalObjects_name = line.Split(':')[1].Trim();
+                        }
+                        if (line.StartsWith("    second:"))
+                        {
+                            string unparsed = '{'+line.Split('{')[1].Trim();
+                            var deserializer = new DeserializerBuilder().IgnoreUnmatchedProperties().Build();
+
+                            SourceObj second = deserializer.Deserialize<SourceObj>(unparsed); //this makes it easier to get our source object
+
+                            if(externalObjects_name != string.Empty)
+                            {
+                                externalObjects.Add(externalObjects_name, second);
+                            }
+                            
+                        }
+
+                        break;
                 }
             }
         }
