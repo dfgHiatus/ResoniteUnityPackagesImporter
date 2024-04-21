@@ -24,7 +24,7 @@ public class ConvexMeshCollider : Component
     public string Name { get; set; } = string.Empty;
     public ulong m_GameObjectID { get; set; }
 
-    public async Task instanciateAsync(IUnityStructureImporter importer)
+    new public async Task instanciateAsync(IUnityStructureImporter importer)
     {
         if (instanciated) return;
 

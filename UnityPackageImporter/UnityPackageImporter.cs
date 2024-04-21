@@ -236,8 +236,6 @@ public class UnityPackageImporter : ResoniteMod
                 
                 switch (ending)
                 {
-                    case UNITY_PREFAB_EXTENSION:
-                        break;
                     case UNITY_META_EXTENSION:
                         string filename = file.Substring(0, file.Length - Path.GetExtension(file).Length); //since every meta is filename + extension + ".meta" we can cut off the extension and have the original file name and path.
                         string fileGUID = File.ReadLines(file).ToArray()[1].Split(':')[1].Trim(); // the GUID is on the first line in the file (not 0th) after a colon and space, so trim it to get id.

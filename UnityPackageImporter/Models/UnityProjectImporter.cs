@@ -1,4 +1,6 @@
-﻿using Elements.Core;
+﻿using Assimp;
+using Elements.Assets;
+using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.FinalIK;
 using HarmonyLib;
@@ -21,7 +23,6 @@ namespace UnityPackageImporter
 
         public ReadOnlyDictionary<string, string> ListOfMetas;
         public readonly Slot importTaskAssetRoot;
-        public ReadOnlyDictionary<ulong, string> MeshRendererID_To_FileGUID;
         public List<FileImportHelperTaskMaterial> TasksMaterials = new List<FileImportHelperTaskMaterial>();
         
 
@@ -129,7 +130,11 @@ namespace UnityPackageImporter
         public static async Task SettupHumanoid(FileImportTaskScene task, Slot FBXRoot)
         {
             UnityPackageImporter.Msg("checking if this FBX is a humanoid");
-            await task.metafile.ScanFile(task, FBXRoot);
+            Slot taskSlot = FBXRoot;
+
+            await task.metafile.ScanFile(task, taskSlot); //we have to scan again here, since the slots may have changed names.
+            await task.metafile.GenerateComponents(taskSlot);
+
             bool isBiped = task.metafile.modelBoneHumanoidAssignments.IsBiped;
 
             //EXPLAINATION OF THIS CODE:
@@ -139,7 +144,7 @@ namespace UnityPackageImporter
             if (isBiped) {
 
                 await default(ToWorld);
-                Slot taskSlot = FBXRoot;
+                
                 Rig rig = taskSlot.GetComponent<Rig>();
                 if (rig == null)
                 {
@@ -149,11 +154,6 @@ namespace UnityPackageImporter
                 }
                 await default(ToBackground); 
 
-
-                await default(ToWorld);
-                var foundvrik = null != taskSlot.GetComponent(typeof(VRIK));
-                await default(ToBackground);
-
                 
 
 
@@ -161,7 +161,7 @@ namespace UnityPackageImporter
 
                 await default(ToWorld);
                 UnityPackageImporter.Msg("Finding if we set up VRIK and are biped.");
-                if (!foundvrik && (isBiped))
+                if (isBiped)
                 {
                     UnityPackageImporter.Msg("We have not set up vrik!");
 
@@ -169,7 +169,7 @@ namespace UnityPackageImporter
                     //put our stuff under a slot called rootnode so froox engine can set this model up as an avatar
                     await default(ToWorld);
                     Slot rootnode = FBXRoot; //intentional - @989onan
-                    rootnode.LocalScale *= task.metafile.GlobalScale;
+                    
 
 
                     UnityPackageImporter.Msg("Scaling up/down armature to file's global scale.");
@@ -177,7 +177,12 @@ namespace UnityPackageImporter
                     await default(ToWorld);
                     foreach (Slot slot in rootnode.GetAllChildren(false).ToArray())
                     {
+                        if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>())
+                        {
 
+                            UnityPackageImporter.Msg("scaling bone " + slot.Name);
+                            slot.LocalPosition *= task.metafile.GlobalScale*100;
+                        }
 
 
                         UnityPackageImporter.Msg("creating bone colliders for bone " + slot.Name);
@@ -230,6 +235,13 @@ namespace UnityPackageImporter
 
                     await default(ToBackground);
 
+                    Elements.Core.BoundingBox boundingBox = Elements.Core.BoundingBox.Empty();
+                    
+                    await default(ToWorld);
+                    float num = FBXRoot.ComputeBoundingBox(false, FBXRoot, null, null).Size.y/1.8f;
+
+                    rootnode.LocalScale /= new float3(num, num, num);
+                    await default(ToBackground);
 
 
                     UnityPackageImporter.Msg("attaching VRIK");

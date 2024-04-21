@@ -74,7 +74,7 @@ namespace UnityPackageImporter.Models
 
                 var deserializer = new DeserializerBuilder().WithNodeTypeResolver(noderesolver)
                     .IgnoreUnmatchedProperties()
-                    .WithNamingConvention(NullNamingConvention.Instance)//outta here with that crappy conversion!!!! We got unity crap we deal with unity crap. - @989onan
+                    //.WithNamingConvention(NullNamingConvention.Instance)//outta here with that crappy conversion!!!! We got unity crap we deal with unity crap. - @989onan
                     .Build();
 
                 var parser = new Parser(sr);

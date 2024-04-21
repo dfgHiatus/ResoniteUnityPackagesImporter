@@ -1,4 +1,5 @@
-﻿using FrooxEngine;
+﻿using Assimp;
+using FrooxEngine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +16,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public Dictionary<string, ulong> m_GameObject;
         public int m_Enabled = 1;
         public Dictionary<int, FileImportHelperTaskMaterial> materials = new Dictionary<int, FileImportHelperTaskMaterial>();
-        public string Name = string.Empty;
         public List<Dictionary<string, string>> m_Materials;
         public SourceObj m_Mesh;
         public List<Dictionary<string, ulong>> m_Bones;
@@ -33,23 +33,93 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
             if (!instanciated)
             {
-                
+
                 instanciated = true;
+
                 try
                 {
+                    if (importer.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(m_Mesh.guid, out FileImportTaskScene importedfbx2))
+                    {
+                        
+                        if(m_GameObject != null)
+                        {
+                            importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc);
+                            parentobj = parentobj_inc as GameObject;
 
-                    //importer.unityProjectImporter.MeshRendererID_To_FileGUID.Add(id, m_Mesh["guid"]); <-wtf does this do? commented out since this read only. @989onan 
-                    importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc);
-                    await default(ToWorld);
-                    await parentobj_inc.instanciateAsync(importer);
-                    await default(ToBackground);
-                    parentobj = parentobj_inc as GameObject;
-                    Name = parentobj.m_Name;
+                            foreach (var pair in importedfbx2.FILEID_To_Slot_Pairs)
+                            {
+                                if (pair.Value.GetType() == typeof(SkinnedMeshRenderer))
+                                {
+
+
+                                    FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newskin = (pair.Value as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
+                                    if (newskin.createdMeshRenderer.Slot.Name.Equals(parentobj.frooxEngineSlot.Name))
+                                    {
+
+                                        
+
+                                        await default(ToWorld);
+                                        await parentobj.instanciateAsync(importer);
+                                        await default(ToWorld);
+
+                                        Slot newslot = newskin.createdMeshRenderer.Slot.Duplicate();
+                                        newslot.SetParent(parentobj.frooxEngineSlot.Parent, false);
+                                        newslot.TRS = parentobj.frooxEngineSlot.TRS;
+                                        foreach (Slot child in parentobj.frooxEngineSlot.Children)
+                                        {
+                                            child.SetParent(parentobj.frooxEngineSlot, false);
+                                        }
+                                        await default(ToWorld);
+                                        parentobj.frooxEngineSlot.Destroy();
+                                        parentobj.frooxEngineSlot = newslot;
+                                        this.createdMeshRenderer = newslot.GetComponent<FrooxEngine.SkinnedMeshRenderer>();
+                                        await default(ToBackground);
+
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject parentobj_inc);
+                            await default(ToWorld);
+                            await parentobj_inc.instanciateAsync(importer);
+                            await default(ToWorld);
+                            PrefabInstance prefab = parentobj_inc as PrefabInstance;
+
+                            if (prefab.PrefabHashes.TryGetValue(this.m_CorrespondingSourceObject, out IUnityObject gameobj)) {
+                                FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newskin = (gameobj as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
+                                parentobj.frooxEngineSlot = newskin.createdMeshRenderer.Slot;
+                                this.createdMeshRenderer = newskin.createdMeshRenderer;
+                            }
+                            else
+                            {
+                                UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_Mesh.guid + "\" could not find/create it's parent game obj!");
+                            }
+                            
+                        }
+                        
+                        
+                        
+
+                        if(parentobj == null)
+                        {
+                            UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_Mesh.guid + "\" could not find/create it's parent game obj with name \""+ parentobj.frooxEngineSlot.Name + "\"!");
+                        }
+                    }
+                    else
+                    {
+                        UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \""+ m_Mesh.guid + "\" could not find the pre-imported FBX!");
+                    }
+                        
+                    
                 }
-                catch
+                catch (Exception ex)
                 {
                     UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render couldn't find it's parent an id of \"" + m_GameObject["fileID"].ToString() + "\" Your renderer will come out mis-shapen!");
+                    UnityPackageImporter.Warn(ex.Message,ex.StackTrace);
                 }
+
 
 
                 await default(ToBackground);
@@ -60,7 +130,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         if (importer.existingIUnityObjects.TryGetValue(((Transform)bone_trans).m_GameObject["fileID"], out IUnityObject bone_obj))
                         {
                             GameObject obj2 = bone_obj as GameObject;
+                            await default(ToWorld);
                             await bone_obj.instanciateAsync(importer);
+                            await default(ToBackground);
                         }
                     }
                     else
@@ -101,108 +173,136 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                 if (importer.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(m_Mesh.guid, out FileImportTaskScene importedfbx))
                 {
-                    if(importedfbx.FILEID_To_Slot_Pairs.TryGetValue(m_Mesh, out IUnityObject skinnedMeshRenderer)){
-                        FrooxEngine.SkinnedMeshRenderer FoundMesh = this.parentobj.frooxEngineSlot.AttachComponent<FrooxEngine.SkinnedMeshRenderer>();
-                        FoundMesh.Mesh.ReferenceID = (skinnedMeshRenderer as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer).createdMeshRenderer.Mesh.ReferenceID;
+                    FrooxEngine.SkinnedMeshRenderer FoundMesh = this.createdMeshRenderer;
+                    //FoundMesh.Mesh.ReferenceID = (skinnedMeshRenderer as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer).createdMeshRenderer.Mesh.ReferenceID;
+                    await default(ToWorld);
+                    while (!FoundMesh.Mesh.IsAssetAvailable)
+                    {
+                        await default(NextUpdate);
+                        //UnityPackageImporter.Msg("Waiting for mesh assets for: \"" + mesh.Slot.Name + "\"");
+                    }
+                    await default(ToWorld);
+                    FoundMesh.Enabled = this.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported;
 
-                        FoundMesh.Enabled = this.m_Enabled == 1; //in case it's disabled in unity, this will make it disabled when imported;
 
 
+                    /*//TODO: These are scaled wrong, causing the mesh to scale weirdly. come back later to this, maybe?. - @989onan
+                    FoundMesh.ExplicitLocalBounds.Value =
+                    Elements.Core.BoundingBox.CenterSize(
+                        new Elements.Core.float3(
+                            this.m_AABB.m_Center["x"],
+                            this.m_AABB.m_Center["y"],
+                            this.m_AABB.m_Center["z"]),
+                        new Elements.Core.float3(this.m_AABB.m_Extent["x"],
+                        this.m_AABB.m_Extent["y"],
+                        this.m_AABB.m_Extent["z"]
+                        ));*/
+                    FoundMesh.BoundsComputeMethod.Value = SkinnedBounds.SlowRealtimeAccurate; //use generated colliders
+                    await default(ToBackground);
 
-                        /*//TODO: These are scaled wrong, causing the mesh to scale weirdly. come back later to this. - @989onan
-                        FoundMesh.ExplicitLocalBounds.Value =
-                        Elements.Core.BoundingBox.CenterSize(
-                            new Elements.Core.float3(
-                                this.m_AABB.m_Center["x"],
-                                this.m_AABB.m_Center["y"],
-                                this.m_AABB.m_Center["z"]),
-                            new Elements.Core.float3(this.m_AABB.m_Extent["x"],
-                            this.m_AABB.m_Extent["y"],
-                            this.m_AABB.m_Extent["z"]
-                            ));
-                        FoundMesh.BoundsComputeMethod.Value = SkinnedBounds.Explicit; //use Unity's skinned bounds methods. */
-                        await default(ToBackground);
-
-                        Dictionary<string, Slot> bonemappings = new Dictionary<string, Slot>();
-                        UnityPackageImporter.Msg("gathering bones for model.");
-                        foreach (Dictionary<string, ulong> bonemap in this.m_Bones)
+                    Dictionary<string, Slot> bonemappings = new Dictionary<string, Slot>();
+                    UnityPackageImporter.Msg("gathering bones for model.");
+                    foreach (Dictionary<string, ulong> bonemap in this.m_Bones)
+                    {
+                        if (importer.existingIUnityObjects.TryGetValue(bonemap["fileID"], out IUnityObject unityObject))
                         {
-                            if (importer.existingIUnityObjects.TryGetValue(bonemap["fileID"], out IUnityObject unityObject))
+                            FrooxEngineRepresentation.GameObjectTypes.Transform obj = unityObject as FrooxEngineRepresentation.GameObjectTypes.Transform;
+                            await default(ToWorld);
+                            await obj.instanciateAsync(importer);
+                            await default(ToBackground);
+                            if (importer.existingIUnityObjects.TryGetValue(obj.m_GameObjectID, out IUnityObject unityObjectGame))
                             {
-                                FrooxEngineRepresentation.GameObjectTypes.Transform obj = unityObject as FrooxEngineRepresentation.GameObjectTypes.Transform;
-                                importer.existingIUnityObjects.TryGetValue(obj.m_GameObjectID, out IUnityObject unityObjectGame);
-                                GameObject gamneobj = unityObjectGame as GameObject;
-                                bonemappings.Add(gamneobj.m_Name, gamneobj.frooxEngineSlot);
+                                GameObject gameobj = unityObjectGame as GameObject;
+                                if (gameobj.m_Name.EndsWith(" 1"))
+                                {
+                                    string removed = gameobj.m_Name.Substring(0, gameobj.m_Name.LastIndexOf(" 1"));
+                                    if (FoundMesh.Mesh.Asset.Data.bones.Find(bone => bone.Name == removed) != null)
+                                    {
+                                        bonemappings.Add(removed, gameobj.frooxEngineSlot); //take care of meshes that have the same names as bone (EX: "Head" mesh and "Head" bone)
+                                        continue;
+                                    }
+                                }
+                                bonemappings.Add(gameobj.frooxEngineSlot.Name, gameobj.frooxEngineSlot);
+
                             }
                             else
                             {
-                                UnityPackageImporter.Msg("Couldn't find bone for skinned mesh renderer on your prefab! This is bad!");
+                                UnityPackageImporter.Msg("Couldn't find bone (error 2) for skinned mesh renderer on your prefab! This is bad!");
                             }
-
-
+                            
+                        }
+                        else
+                        {
+                            UnityPackageImporter.Msg("Couldn't find bone for skinned mesh renderer on your prefab! This is bad!");
                         }
 
 
+                    }
 
-                        await default(ToWorld);
-                        UnityPackageImporter.Msg("setting up bones for model.");
-                        FoundMesh.SetupBones(bonemappings);
-                        await default(ToBackground);
-                        
-                        if (this.m_Materials != null)
+
+
+                    await default(ToWorld);
+                    UnityPackageImporter.Msg("setting up bones for model.");
+                    FoundMesh.SetupBones(bonemappings);
+                    await default(ToBackground);
+
+                    if (this.m_Materials != null)
+                    {
+                        if(this.m_Materials.Count > 0)
                         {
-                            if(this.m_Materials.Count > 0)
-                            {
                                 
-                                UnityPackageImporter.Msg("clearing bad material objects for: \"" + FoundMesh.Slot.Name + "\"");
-                                await default(ToWorld);
-                                FoundMesh.Materials.Clear();
-                                await default(ToBackground);
+                            UnityPackageImporter.Msg("clearing bad material objects for: \"" + FoundMesh.Slot.Name + "\"");
+                            await default(ToWorld);
+                            FoundMesh.Materials.Clear();
+                            await default(ToBackground);
 
-                                UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
-                                for (int index = 0; index < this.m_Materials.Count(); index++)
+                            UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\"");
+                            for (int index = 0; index < this.m_Materials.Count(); index++)
+                            {
+
+                                if (this.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask))
                                 {
-
-                                    if (this.materials.TryGetValue(index, out FileImportHelperTaskMaterial materialtask))
+                                    try
                                     {
-                                        try
-                                        {
-                                            await default(ToWorld);
-                                            FoundMesh.Materials.Add().Target = await materialtask.runImportFileMaterialsAsync();
-                                            await default(ToBackground);
-                                        }
-                                        catch (Exception e)
-                                        {
-                                            UnityPackageImporter.Warn("Could not attach material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from skinned mesh renderer data. It's probably not in the project or in the files you dragged over.");
-                                            UnityPackageImporter.Warn("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
-                                            UnityPackageImporter.Warn(e.Message);
-                                            await default(ToWorld);
-                                            FoundMesh.Materials.Add();
-                                            await default(ToBackground);
-                                        }
+                                        await default(ToWorld);
+                                        FoundMesh.Materials.Add().Target = await materialtask.runImportFileMaterialsAsync();
+                                        await default(ToBackground);
                                     }
-                                    else
+                                    catch (Exception e)
                                     {
-                                        UnityPackageImporter.Warn("Could not find material task for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from skinned mesh renderer data. It's probably not in the project or in the files you dragged over.");
+                                        UnityPackageImporter.Warn("Could not attach material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from skinned mesh renderer data. It's probably not in the project or in the files you dragged over.");
+                                        UnityPackageImporter.Warn("stacktrace for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\"");
+                                        UnityPackageImporter.Warn(e.Message);
                                         await default(ToWorld);
                                         FoundMesh.Materials.Add();
                                         await default(ToBackground);
                                     }
                                 }
+                                else
+                                {
+                                    UnityPackageImporter.Warn("Could not find material task for material \"" + index.ToString() + "\" on mesh \"" + FoundMesh.Slot.Name + "\" from skinned mesh renderer data. It's probably not in the project or in the files you dragged over.");
+                                    await default(ToWorld);
+                                    FoundMesh.Materials.Add();
+                                    await default(ToBackground);
+                                }
                             }
                         }
+                    }
 
                        
 
                         
 
-                        UnityPackageImporter.Msg("Setting up blend shapes");
-                        await default(ToWorld);
-                        FoundMesh.SetupBlendShapes();
-                        await default(ToBackground);
+                    UnityPackageImporter.Msg("Setting up blend shapes");
+                    await default(ToWorld);
+                    FoundMesh.SetupBlendShapes();
+                    await default(ToBackground);
 
-                        UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + FoundMesh.Slot.Name + "\" imported!");
-                    }
+                    UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + FoundMesh.Slot.Name + "\" imported!");
+                }
+                else
+                {
+                    UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + parentobj.m_Name + "\" could not find it's source mesh on the target file \""+ importedfbx.file+ "\"!");
                 }
 
                 

@@ -136,7 +136,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene is malformed!!! The file source of the prefab doesn't exist in the imported package or file list set.");
                     }
                 }
-                
+                instanciated = true;
+
             }
         }
 

@@ -25,6 +25,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public long fileID { get; set; }
         public string guid { get; set; }
         public int type { get; set; }
+
+        public SourceObj() { }
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();
@@ -66,6 +68,15 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public string propertyPath;
         public string value;
         public Dictionary<string, string> objectReference;
+
+        public ModsPrefab() { }
+        public ModsPrefab(SourceObj target, string propertyPath, string value, Dictionary<string, string> objectReference)
+        {
+            this.target = target;
+            this.propertyPath = propertyPath;
+            this.value = value;
+            this.objectReference = objectReference;
+        }
 
         public override string ToString()
         {
@@ -115,6 +126,10 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public List<ModsPrefab> m_Modifications;
         public List<string> m_RemovedComponents;
 
+        public ModPrefab()
+        {
+
+        }
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();
