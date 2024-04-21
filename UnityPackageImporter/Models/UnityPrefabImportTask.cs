@@ -131,7 +131,7 @@ namespace UnityPackageImporter.Models
                     {
                         
                         FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newobj = (obj.Value as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
-                        if (newobj.parentobj.frooxEngineSlot.Parent.Name == "RootNode")
+                        if (newobj.createdMeshRenderer.Slot.Parent.Name == "RootNode")
                         {
                             if (this.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(newobj.m_Mesh.guid, out FileImportTaskScene importedfbx)) {
                                 await default(ToWorld);
@@ -155,12 +155,11 @@ namespace UnityPackageImporter.Models
                 UnityPackageImporter.Warn(e.Message + e.StackTrace);
                 UnityPackageImporter.Msg(debugPrefab.ToString());
                 FrooxEngineBootstrap.LogStream.Flush();
+                throw e;
             }
 
 
             await default(ToBackground);
-            UnityPackageImporter.Msg("now debugging every object after instanciation!");
-            UnityPackageImporter.Msg(debugPrefab.ToString());
             UnityPackageImporter.Msg("Yaml generation done");
 
             

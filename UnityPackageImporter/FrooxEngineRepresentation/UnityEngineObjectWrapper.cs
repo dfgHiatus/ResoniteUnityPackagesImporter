@@ -63,6 +63,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public PrefabInstance PrefabInstance;
         public RotationConstraint RotationConstraint;
         public MeshCollider MeshCollider;
+        public MonoBehavior MonoBehavior;
 
         public UnityEngineObjectWrapper()
         {
@@ -79,6 +80,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
                 SkinnedMeshRenderer,
                 MeshCollider,
                 RotationConstraint,
+                MonoBehavior,
                 NullType
             }.Find(i => i != null);
 
