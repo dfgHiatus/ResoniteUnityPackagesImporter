@@ -132,21 +132,31 @@ namespace UnityPackageImporter
                     {
                         inScaleBlock2 = false;
                         inScaleBlock3 = true;
-                        
-                        
+                        continue;
+
                     }
                 }
                 if (inScaleBlock3)
                 {
-                    if (line.StartsWith("      scale: "))
+                    //this gets armature scale.
+                    inScaleBlock3 = false;
+                    continue;
+                }
+                if (line.StartsWith("    globalScale:"))
+                {
+                    try
                     {
-                        string numberStr = line.Split(':')[2].Split(',')[0].Trim();
+                        string numberStr = line.Split(':')[1].Trim();
                         UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing to get our scale");
                         GlobalScale = float.Parse(numberStr);
-                        inScaleBlock3 = false;
                     }
+                    catch
+                    {
+                        GlobalScale = 1;
+                    }
+                    inScaleBlock3 = false;
+                    continue;
                 }
-
 
 
 

@@ -183,10 +183,12 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 }
                 else
                 {
-                    //this is to solve a problem where the root of prefabs can be called 
+                    //this is to solve a problem where the root of prefabs can be called their game object name
                     if(m_FatherID == 0)
                     {
+                        await default(ToWorld);
                         parentobj.frooxEngineSlot.Name = "RootNode";
+                        await default(ToBackground);
                     }
                     
 

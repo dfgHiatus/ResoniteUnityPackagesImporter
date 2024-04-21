@@ -85,6 +85,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Component.cs" />
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\ConvexMeshCollider.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\NullType.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\PrefabInstance.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\SkinnedMeshRenderer.cs" />

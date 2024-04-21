@@ -207,10 +207,23 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         if (importer.existingIUnityObjects.TryGetValue(bonemap["fileID"], out IUnityObject unityObject))
                         {
                             FrooxEngineRepresentation.GameObjectTypes.Transform obj = unityObject as FrooxEngineRepresentation.GameObjectTypes.Transform;
-                            if(importer.existingIUnityObjects.TryGetValue(obj.m_GameObjectID, out IUnityObject unityObjectGame))
+                            await default(ToWorld);
+                            await obj.instanciateAsync(importer);
+                            await default(ToBackground);
+                            if (importer.existingIUnityObjects.TryGetValue(obj.m_GameObjectID, out IUnityObject unityObjectGame))
                             {
                                 GameObject gameobj = unityObjectGame as GameObject;
-                                bonemappings.Add(gameobj.m_Name, gameobj.frooxEngineSlot);
+                                if (gameobj.m_Name.EndsWith(" 1"))
+                                {
+                                    string removed = gameobj.m_Name.Substring(0, gameobj.m_Name.LastIndexOf(" 1"));
+                                    if (FoundMesh.Mesh.Asset.Data.bones.Find(bone => bone.Name == removed) != null)
+                                    {
+                                        bonemappings.Add(removed, gameobj.frooxEngineSlot); //take care of meshes that have the same names as bone (EX: "Head" mesh and "Head" bone)
+                                        continue;
+                                    }
+                                }
+                                bonemappings.Add(gameobj.frooxEngineSlot.Name, gameobj.frooxEngineSlot);
+
                             }
                             else
                             {

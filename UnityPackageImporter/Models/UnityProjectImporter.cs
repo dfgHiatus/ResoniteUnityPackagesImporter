@@ -1,4 +1,6 @@
-﻿using Elements.Core;
+﻿using Assimp;
+using Elements.Assets;
+using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.FinalIK;
 using HarmonyLib;
@@ -167,7 +169,7 @@ namespace UnityPackageImporter
                     //put our stuff under a slot called rootnode so froox engine can set this model up as an avatar
                     await default(ToWorld);
                     Slot rootnode = FBXRoot; //intentional - @989onan
-                    rootnode.LocalScale *= task.metafile.GlobalScale;
+                    
 
 
                     UnityPackageImporter.Msg("Scaling up/down armature to file's global scale.");
@@ -175,7 +177,12 @@ namespace UnityPackageImporter
                     await default(ToWorld);
                     foreach (Slot slot in rootnode.GetAllChildren(false).ToArray())
                     {
+                        if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>())
+                        {
 
+                            UnityPackageImporter.Msg("scaling bone " + slot.Name);
+                            slot.LocalPosition *= task.metafile.GlobalScale*100;
+                        }
 
 
                         UnityPackageImporter.Msg("creating bone colliders for bone " + slot.Name);
@@ -228,6 +235,13 @@ namespace UnityPackageImporter
 
                     await default(ToBackground);
 
+                    Elements.Core.BoundingBox boundingBox = Elements.Core.BoundingBox.Empty();
+                    
+                    await default(ToWorld);
+                    float num = FBXRoot.ComputeBoundingBox(false, FBXRoot, null, null).Size.y/1.8f;
+
+                    rootnode.LocalScale /= new float3(num, num, num);
+                    await default(ToBackground);
 
 
                     UnityPackageImporter.Msg("attaching VRIK");
