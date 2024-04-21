@@ -64,10 +64,10 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 
     public class ModsPrefab
     {
-        public SourceObj target;
-        public string propertyPath;
-        public string value;
-        public Dictionary<string, string> objectReference;
+        public SourceObj target { get; set; }
+        public string propertyPath { get; set; }
+        public string value { get; set; }
+        public Dictionary<string, string> objectReference { get; set; }
 
         public ModsPrefab() { }
         public ModsPrefab(SourceObj target, string propertyPath, string value, Dictionary<string, string> objectReference)
@@ -124,7 +124,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
     {
         public Dictionary<string, ulong> m_TransformParent;
         public List<ModsPrefab> m_Modifications;
-        public List<string> m_RemovedComponents;
+        public List<SourceObj> m_RemovedComponents;
 
         public ModPrefab()
         {

@@ -31,9 +31,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
         public SourceObj m_CorrespondingSourceObject { get; set; }
 
-        public Transform()
-        {
-        }
 
         //this is the magic that allows us to construct an entire game object prefab with just yaml parsing.
         public async Task instanciateAsync(IUnityStructureImporter importer)
@@ -91,9 +88,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                                 }
 
-                                await default(ToWorld);
-                                await this.parentHashedGameObj.instanciateAsync(importer);
-                                await default(ToBackground);
+                                
                                 if (this.parentHashedGameObj.id == alreadydefined.parentHashedGameObj.id)
                                 {
                                     try
@@ -105,6 +100,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                                         UnityPackageImporter.Warn("The inline prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" and a guid of \"null\"did not find it's parent transform's game object! this will split your import in half heiarchy wise! This should never happen!");
                                     }
                                 }
+                                await default(ToWorld);
+                                await this.parentHashedGameObj.instanciateAsync(importer);
+                                await default(ToBackground);
 
 
 
@@ -117,6 +115,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                                 this.m_LocalPosition = new TransformFloat3(this.parentHashedGameObj.frooxEngineSlot.LocalPosition.x, this.parentHashedGameObj.frooxEngineSlot.LocalPosition.y, this.parentHashedGameObj.frooxEngineSlot.LocalPosition.z);
                                 this.m_LocalRotation = new TransformFloat4(this.parentHashedGameObj.frooxEngineSlot.LocalRotation.x, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.y, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.z, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.w);
                                 this.m_LocalScale = new TransformFloat3(this.parentHashedGameObj.frooxEngineSlot.LocalScale.x, this.parentHashedGameObj.frooxEngineSlot.LocalScale.y, this.parentHashedGameObj.frooxEngineSlot.LocalScale.z);
+
                             }
                             catch (Exception ex)
                             {
@@ -126,6 +125,10 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                             
 
                         }
+                    }
+                    else
+                    {
+                        UnityPackageImporter.Warn("The transform with an id \"" + id.ToString() + "\" has a m_CorrespondingSourceObject with a GUID of \""+ m_CorrespondingSourceObject.guid + "\" but it can't find it's prefab! This should never happen!");
                     }
                     instanciated = true;
 
@@ -150,13 +153,16 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 
                 GameObject parentobj;
                 parentobj = foundobject as GameObject;
+                await default(ToWorld);
                 await parentobj.instanciateAsync(importer);
+                await default(ToBackground);
 
                 //heh the dictionary stuff in yamls are weird
                 await default(ToWorld);
                 parentobj.frooxEngineSlot.LocalPosition = new float3(m_LocalPosition.x, m_LocalPosition.y, m_LocalPosition.z);
                 parentobj.frooxEngineSlot.LocalRotation = new floatQ(m_LocalRotation.x, m_LocalRotation.y, m_LocalRotation.z, m_LocalRotation.w);
                 parentobj.frooxEngineSlot.LocalScale = new float3(m_LocalScale.x, m_LocalScale.y, m_LocalScale.z);
+                
                 await default(ToBackground);
                 if (importer.existingIUnityObjects.TryGetValue(m_FatherID, out IUnityObject foundobjectparent) && foundobjectparent.GetType() == typeof(Transform))
                 {

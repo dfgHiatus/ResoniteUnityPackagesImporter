@@ -65,107 +65,9 @@ namespace UnityPackageImporter.Models
                 }
                 File.WriteAllLines(ID.Value, newcontent);
 
+                this.existingIUnityObjects = YamlToFrooxEngine.parseYaml(this.ID.Value);
 
-
-
-                using var sr = File.OpenText(ID.Value);
-
-                UnityNodeTypeResolver noderesolver = new UnityNodeTypeResolver();
-
-                var deserializer = new DeserializerBuilder().WithNodeTypeResolver(noderesolver)
-                    .IgnoreUnmatchedProperties()
-                    //.WithNamingConvention(NullNamingConvention.Instance)//outta here with that crappy conversion!!!! We got unity crap we deal with unity crap. - @989onan
-                    .Build();
-
-                var parser = new Parser(sr);
-
-                
-                parser.Consume<StreamStart>();
-                DocumentStart variable;
-                //begin the parsing of our scenes.
-
-                //parse loop
-                //now using the power of yaml we can make this a bit more reliable and hopefully smaller.
-                //reading unity scenes as yaml allows us to much more easily obtain the data we need.
-                //Unity yamls are different, but with a little trickery we can still read them with a library.
-                while (parser.Accept<DocumentStart>(out variable) == true)
-                {
-                    // Deserialize the document
-                    try
-                    {
-                        try
-                        {
-                            UnityEngineObjectWrapper docWrapped = deserializer.Deserialize<UnityEngineObjectWrapper>(parser);
-                            IUnityObject doc = docWrapped.Result();
-                            doc.id = noderesolver.anchor; //this works because they're separate documents and we're deserializing them one by one. Not nessarily in order, we're just gathering them.
-                                                          //since deserializing happens before adding to the list and those are done syncronously with each other, it is fine.
-
-                            existingIUnityObjects.Add(doc.id, doc);
-                        }
-                        catch
-                        {
-                            try
-                            {
-                                IUnityObject doc = new FrooxEngineRepresentation.GameObjectTypes.NullType();
-                                doc.id = noderesolver.anchor;
-                                existingIUnityObjects.Add(doc.id, doc);
-                            }
-                            catch (ArgumentException e2)
-                            {/*idc.*/
-                                UnityPackageImporter.Msg("Duplicate key probably for Scene \"" + ID.Value + "\" just ignore this.");
-                                UnityPackageImporter.Warn(e2.Message + e2.StackTrace);
-                            }
-
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        UnityPackageImporter.Msg("Couldn't evaluate node type for the Scene\"" + ID.Value + "\". stacktrace below");
-                        UnityPackageImporter.Warn(e.Message + e.StackTrace);
-                    }
-
-
-
-                }
-
-                //some debugging for the user to show them it worked or failed.
-
-                UnityPackageImporter.Msg("Loaded " + existingIUnityObjects.Count.ToString() + " Unity objects/components/prefabs/lights ETC!");
-
-
-                //instanciate prefabs first, since those have modifications to other already instanciated objects and would get complicated otherwise.
-                await default(ToWorld);
-                foreach (var obj in existingIUnityObjects)
-                {
-                    if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.PrefabInstance))
-                    {
-                        try
-                        {
-                            await obj.Value.instanciateAsync(this);
-                            
-                        }
-                        catch (Exception e)
-                        {
-                            UnityPackageImporter.Warn("Scene Prefab failed to instanciate!");
-                            UnityPackageImporter.Msg("Scene Prefab ID: \"" + obj.Value.id.ToString() + "\"");
-                            UnityPackageImporter.Warn(e.Message + e.StackTrace);
-                        }
-                        try
-                        {
-                            debugScene.Append(obj.Value.ToString());
-                        }
-                        catch (Exception e)
-                        {
-                            UnityPackageImporter.Warn("Scene prefab could not be turned into a string!");
-                            UnityPackageImporter.Msg("Scene prefab ID: \"" + obj.Value.id.ToString() + "\"");
-                            UnityPackageImporter.Warn(e.Message + e.StackTrace);
-                        }
-                    }
-
-                }
-                await default(ToBackground);
-
-                UnityPackageImporter.Msg("Loaded all prefabs for scene \"" + ID.Value + "\"");
+                UnityPackageImporter.Msg("Loaded " + existingIUnityObjects.Count.ToString() + " Unity prefabs/transforms/special_components for scene!");
 
                 //instanciate everything else.
                 await default(ToWorld);
@@ -240,16 +142,37 @@ namespace UnityPackageImporter.Models
                 }
 
                 UnityPackageImporter.Msg("Setting up IK for Prefabs in scene \""+ID.Value+"\"");
+
+                await default(ToBackground);
+                foreach (var obj in existingIUnityObjects)
+                {
+                    if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer))
+                    {
+
+                        FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newobj = (obj.Value as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
+                        await default(ToWorld);
+                        newobj.createdMeshRenderer.Enabled = newobj.m_Enabled == 1;
+                        await default(ToBackground);
+                    }
+                }
                 await default(ToWorld);
                 foreach (var obj in existingIUnityObjects)
                 {
                     if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.PrefabInstance))
                     {
                         FrooxEngineRepresentation.GameObjectTypes.PrefabInstance prefab = obj.Value as FrooxEngineRepresentation.GameObjectTypes.PrefabInstance;
-
-                        await UnityProjectImporter.SettupHumanoid(
+                        if (unityProjectImporter.SharedImportedFBXScenes.ContainsKey(prefab.m_SourcePrefab.guid)){
+                            await default(ToWorld);
+                            await UnityProjectImporter.SettupHumanoid(
                             unityProjectImporter.SharedImportedFBXScenes[prefab.m_SourcePrefab.guid],
                             prefab.ImportRoot.frooxEngineSlot);
+                            await default(ToBackground);
+                        }
+                        else
+                        {
+                            UnityPackageImporter.Msg("A prefab (source fbx id: \"" + prefab.id.ToString() + "\") in scene \"" + this.ID.Value + "\" that probably points to another prefab was attempted to be imported. TODO: FIX THIS");//TODO: FIX THIS!
+                        }
+
                     }
                 }
                 await default(ToBackground);
@@ -258,6 +181,8 @@ namespace UnityPackageImporter.Models
             {
                 UnityPackageImporter.Warn("Scene \"" + ID.Value + "\" hit critical import error! dumping!");
                 UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                FrooxEngineBootstrap.LogStream.Flush();
+                throw e;
                 
             }
             

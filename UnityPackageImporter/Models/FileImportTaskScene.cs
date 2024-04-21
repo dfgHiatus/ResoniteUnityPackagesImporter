@@ -156,6 +156,7 @@ namespace UnityPackageImporter.Models
                 //we will replace these missing ones later.
                 for (int j = 0; j < skinnedrenderer.createdMeshRenderer.Mesh.Asset.Data.SubmeshCount; j++)
                 {
+                    //skinnedrenderer.createdMeshRenderer.Mesh.Asset.Data.Submeshes
                     UnlitMaterial missingmat = this.importTaskAssetSlot.FindChildOrAdd("Missing Material").GetComponentOrAttach<UnlitMaterial>();
                     missingmat.TintColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
                     skinnedrenderer.createdMeshRenderer.Materials.Add().Target = missingmat;

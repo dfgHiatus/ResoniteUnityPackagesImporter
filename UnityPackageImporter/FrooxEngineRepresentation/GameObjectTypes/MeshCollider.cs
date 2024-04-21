@@ -10,51 +10,62 @@ using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
 
-public class ConvexMeshCollider : Component
+public class MeshCollider: IUnityObject
 {
     #region MeshCollider Fields
     public SourceObj m_Mesh { get; set; }
     public Dictionary<string, ulong> m_GameObject;
+    public bool instanciated { get; set; }
+
     public ulong m_IsTrigger { get; set; }
     public ulong m_Enabled { get; set; }
     public ulong m_Convex { get; set; }
     #endregion
 
-    public GameObject parentobj { get; set; }
-    public string Name { get; set; } = string.Empty;
     public ulong m_GameObjectID { get; set; }
+    public ulong id { get; set; }
+    public SourceObj m_CorrespondingSourceObject { get; set; }
+    public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
-    new public async Task instanciateAsync(IUnityStructureImporter importer)
+    public async Task instanciateAsync(IUnityStructureImporter importer)
     {
         if (instanciated) return;
 
         try
         {
-            importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc);
-            await default(ToWorld);
-            await parentobj_inc.instanciateAsync(importer);
-            await default(ToBackground);
-            parentobj = parentobj_inc as GameObject;
-            Name = parentobj.m_Name;
+            if(importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc))
+            {
+                await default(ToWorld);
+                await CreateSelf(importer);
+                await default(ToBackground);
+            }
+            else
+            {
+                UnityPackageImporter.Warn("The prefab is malformed!!! A mesh collider couldn't find it's parent an id of \"" + m_GameObject["fileID"].ToString() + "\" Your collider will come out mis-shapen!");
+            }
         }
-        catch
+        catch (Exception e)
         {
-            UnityPackageImporter.Warn("The prefab is malformed!!! A mesh collider couldn't find it's parent an id of \"" + m_GameObject["fileID"].ToString() + "\" Your collider will come out mis-shapen!");
+            UnityPackageImporter.Warn("an instanciating mesh collider hit an error! Stacktrace:");
+            UnityPackageImporter.Warn(e.Message,e.StackTrace);
         }
 
-        await CreateSelf(importer);
+        
 
         instanciated = true;
     }
 
     private async Task CreateSelf(IUnityStructureImporter importer)
     {
-        if (importer.existingIUnityObjects.TryGetValue(m_GameObjectID, out IUnityObject foundobject) && 
-            foundobject.GetType() == typeof(ConvexMeshCollider))
+        m_GameObjectID = m_GameObject["fileID"];
+        if (importer.existingIUnityObjects.TryGetValue(m_GameObjectID, out IUnityObject foundobject) &&
+            foundobject.GetType() == typeof(GameObject))
         {
-            m_GameObjectID = m_GameObject["fileID"];
+
             var parentobj = foundobject as GameObject;
+            await default(ToWorld);
             await parentobj.instanciateAsync(importer);
+            await default(ToBackground);
 
             // Heh the dictionary stuff in yamls are weird
             await default(ToWorld);
@@ -77,7 +88,7 @@ public class ConvexMeshCollider : Component
         }
         else
         {
-            UnityPackageImporter.Warn("The prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" did not find it's game object! ");
+            UnityPackageImporter.Warn("The prefab is malformed!!! the mesh with an id \"" + id.ToString() + "\" did not find it's game object! ");
         }
     }
 
