@@ -224,8 +224,11 @@ namespace UnityPackageImporter.Models
 
 
                 }
-                
-                FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
+
+                if (!FILEID_To_Slot_Pairs.ContainsKey(identifier))
+                {
+                    FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
+                }
             }
 
 
@@ -269,8 +272,11 @@ namespace UnityPackageImporter.Models
             calclatedobj.instanciated = true;
             calclatedobj.frooxEngineSlot = curnode;
             calclatedobj.m_CorrespondingSourceObject = findRealSource(curnode.Name, "GameObject", FindSlotPath(curnode, SceneRoot));
-
-            FILEID_into_Slot_Pairs.Add(calclatedobj.m_CorrespondingSourceObject, calclatedobj);
+            if (!FILEID_into_Slot_Pairs.ContainsKey(calclatedobj.m_CorrespondingSourceObject))
+            {
+                FILEID_into_Slot_Pairs.Add(calclatedobj.m_CorrespondingSourceObject, calclatedobj);
+            }
+            
 
             
             FrooxEngineRepresentation.GameObjectTypes.Transform calclatedTransformobj = new FrooxEngineRepresentation.GameObjectTypes.Transform();
@@ -279,8 +285,10 @@ namespace UnityPackageImporter.Models
             calclatedTransformobj.m_CorrespondingSourceObject = findRealSource(curnode.Name, "Transform", FindSlotPath(curnode, SceneRoot));
 
             //UnityPackageImporter.Msg($"{Calculated_fileidtransform} was made from transform \"{curnode.Name}\" with path \"{transformpath}\"");
-
-            FILEID_into_Slot_Pairs.Add(calclatedTransformobj.m_CorrespondingSourceObject, calclatedTransformobj);
+            if (!FILEID_into_Slot_Pairs.ContainsKey(calclatedTransformobj.m_CorrespondingSourceObject))
+            {
+                FILEID_into_Slot_Pairs.Add(calclatedTransformobj.m_CorrespondingSourceObject, calclatedTransformobj);
+            }
             if (root.ChildCount > 0)
             {
                 foreach(Node child in root.Children)
