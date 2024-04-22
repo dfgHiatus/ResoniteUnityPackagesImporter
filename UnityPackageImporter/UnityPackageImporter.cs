@@ -231,7 +231,7 @@ public class UnityPackageImporter : ResoniteMod
             // all we do is read the meta file and steal the GUID from there to get our identifiers in the Prefabs
             foreach (var file in files)
             {
-                UnityPackageImporter.Msg("A file being imported is \""+file+"\"");
+                //UnityPackageImporter.Msg("A file being imported is \""+file+"\"");
                 var ending = Path.GetExtension(file).ToLower();
                 
                 switch (ending)

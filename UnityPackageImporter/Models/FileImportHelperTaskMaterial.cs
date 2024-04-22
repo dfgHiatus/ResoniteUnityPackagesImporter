@@ -22,16 +22,15 @@ namespace UnityPackageImporter.Models
         public Slot matslot;
         public UnityProjectImporter importer;
 
+        public static string materialNameIdentifyEndingPrefab = " - Material";
+
         public FileImportHelperTaskMaterial(string myID, string file, UnityProjectImporter importer)
         {
             this.importer = importer;
             this.file = file;
             UnityPackageImporter.Msg("Importing material with ID: \""+myID+"\"");
-            UnityPackageImporter.Msg("and a file of: \"" + this.file + "\"");
-            UnityPackageImporter.Msg("and a slot assets root of " + importer.importTaskAssetRoot.ToString());
             assetsRoot = importer.importTaskAssetRoot;
-            matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(this.file) + " - Material");
-            UnityPackageImporter.Msg("and a mat slot of " + matslot.ToString());
+            matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(this.file) + materialNameIdentifyEndingPrefab);
             this.myID = myID;
         }
 
@@ -237,24 +236,17 @@ namespace UnityPackageImporter.Models
             StaticTexture2D staticTexture2D = null;
             try
             {
-                UnityPackageImporter.Msg("Path is being found for texture " + idtarget);
                 string f = importer.AssetIDDict[idtarget];
-                UnityPackageImporter.Msg("Path is found for texture " + idtarget + " path is: \"" + f + "\"");
                 await default(ToWorld);
-                UnityPackageImporter.Msg("adding tex slot for texture " + idtarget + " path is: \"" + f + "\"");
                 //so that we don't try importing the same texture twice.
                 if (assetsRoot.GetAllChildren().Exists(i => i.Name.Equals(Path.GetFileName(f) + " - Texture")))
                 {
                     return assetsRoot.GetAllChildren().First(i => i.Name.Equals(Path.GetFileName(f) + " - Texture")).GetComponent<StaticTexture2D>();
                 }
                 Slot slot = matslot.AddSlot(Path.GetFileName(f) + " - Texture");
-                UnityPackageImporter.Msg("adding tex onto slot for texture " + idtarget + " path is: \"" + f + "\"");
                 staticTexture2D = slot.AttachComponent<StaticTexture2D>();
-                UnityPackageImporter.Msg("Importing URI for texture " + idtarget);
                 Uri url = await this.assetsRoot.World.Engine.LocalDB.ImportLocalAssetAsync(f, LocalDB.ImportLocation.Copy);
-                UnityPackageImporter.Msg("Imported URI for texture " + idtarget + " URI is: " + url.ToString());
                 staticTexture2D.URL.Value = url;
-                UnityPackageImporter.Msg("URI is assigned for texture " + idtarget + " URI is: " + url.ToString());
                 await default(ToBackground);
 
             }

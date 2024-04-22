@@ -181,7 +181,7 @@ namespace UnityPackageImporter
                         {
 
                             UnityPackageImporter.Msg("scaling bone " + slot.Name);
-                            slot.LocalPosition *= task.metafile.GlobalScale*100;
+                            slot.LocalPosition *= task.metafile.GlobalScale * 100;
                         }
 
 
@@ -226,8 +226,8 @@ namespace UnityPackageImporter
 
                                 await default(ToWorld);
                                 CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
-                                capsuleCollider.Radius.Value = value;
-                                capsuleCollider.Height.Value = magnitude;
+                                capsuleCollider.Radius.Value = value*100;
+                                capsuleCollider.Height.Value = magnitude*100;
                             }
                         }
 

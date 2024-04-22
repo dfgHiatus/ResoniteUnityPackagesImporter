@@ -118,8 +118,7 @@ namespace UnityPackageImporter.Models
                         {
                             if (trans.m_FatherID == 0 && trans.parentHashedGameObj == null)
                             {
-                                try
-                                {
+                                try{
                                     movethese.Add(existingIUnityObjects[trans.m_GameObjectID]);
                                 }
                                 catch
@@ -141,7 +140,7 @@ namespace UnityPackageImporter.Models
                     await default(ToBackground);
                 }
 
-                UnityPackageImporter.Msg("Setting up IK for Prefabs in scene \""+ID.Value+"\"");
+                UnityPackageImporter.Msg("re-enabling skinned mesh renderers in scene \""+ID.Value+"\"");
 
                 await default(ToBackground);
                 foreach (var obj in existingIUnityObjects)
@@ -151,27 +150,48 @@ namespace UnityPackageImporter.Models
 
                         FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newobj = (obj.Value as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
                         await default(ToWorld);
-                        newobj.createdMeshRenderer.Enabled = newobj.m_Enabled == 1;
+                        if(newobj.createdMeshRenderer != null)
+                        {
+                            newobj.createdMeshRenderer.Enabled = newobj.m_Enabled == 1;
+                        }
                         await default(ToBackground);
                     }
                 }
+
+                UnityPackageImporter.Msg("Setting up IK for Prefabs in scene \"" + ID.Value + "\"");
                 await default(ToWorld);
                 foreach (var obj in existingIUnityObjects)
                 {
                     if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.PrefabInstance))
                     {
                         FrooxEngineRepresentation.GameObjectTypes.PrefabInstance prefab = obj.Value as FrooxEngineRepresentation.GameObjectTypes.PrefabInstance;
-                        if (unityProjectImporter.SharedImportedFBXScenes.ContainsKey(prefab.m_SourcePrefab.guid)){
-                            await default(ToWorld);
-                            await UnityProjectImporter.SettupHumanoid(
-                            unityProjectImporter.SharedImportedFBXScenes[prefab.m_SourcePrefab.guid],
-                            prefab.ImportRoot.frooxEngineSlot);
-                            await default(ToBackground);
-                        }
-                        else
+                        if(prefab.m_SourcePrefab != null)
                         {
-                            UnityPackageImporter.Msg("A prefab (source fbx id: \"" + prefab.id.ToString() + "\") in scene \"" + this.ID.Value + "\" that probably points to another prefab was attempted to be imported. TODO: FIX THIS");//TODO: FIX THIS!
+                            if(prefab.m_SourcePrefab.guid != null)
+                            {
+                                if(prefab.ImportRoot != null)
+                                {
+                                    if (prefab.ImportRoot.frooxEngineSlot != null)
+                                    {
+                                        if (unityProjectImporter.SharedImportedFBXScenes.ContainsKey(prefab.m_SourcePrefab.guid))
+                                        {
+                                            await default(ToWorld);
+                                            await UnityProjectImporter.SettupHumanoid(
+                                            unityProjectImporter.SharedImportedFBXScenes[prefab.m_SourcePrefab.guid],
+                                            prefab.ImportRoot.frooxEngineSlot);
+                                            await default(ToBackground);
+                                        }
+                                        else
+                                        {
+                                            UnityPackageImporter.Msg("A prefab (source fbx id: \"" + prefab.id.ToString() + "\") in scene \"" + this.ID.Value + "\" that probably points to another prefab was attempted to be imported. TODO: FIX THIS");//TODO: FIX THIS!
+                                        }
+                                    }
+                                }
+                                
+                            }
+                           
                         }
+                        
 
                     }
                 }
@@ -181,16 +201,14 @@ namespace UnityPackageImporter.Models
             {
                 UnityPackageImporter.Warn("Scene \"" + ID.Value + "\" hit critical import error! dumping!");
                 UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                UnityPackageImporter.Msg(debugScene.ToString());
                 FrooxEngineBootstrap.LogStream.Flush();
                 throw e;
                 
             }
             
-
-
-            UnityPackageImporter.Msg("now debugging every object after instanciation!");
             UnityPackageImporter.Msg("Yaml generation done");
-            UnityPackageImporter.Msg(debugScene.ToString());
+            
             UnityPackageImporter.Msg("Scene finished!");
         }
 

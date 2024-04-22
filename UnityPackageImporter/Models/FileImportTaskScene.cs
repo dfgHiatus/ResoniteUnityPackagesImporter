@@ -16,6 +16,8 @@ using YamlDotNet.Core;
 using SkyFrost.Base;
 using static UMP.Wrappers.WrapperStandalone;
 using Elements.Assets;
+using System.Reflection;
+using System.Linq;
 
 namespace UnityPackageImporter.Models
 {
@@ -121,7 +123,17 @@ namespace UnityPackageImporter.Models
                 FILEID_To_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(this.data, childofroot, data.TryGetSlot(scene.RootNode), this.assetID));
             }
 
-            
+            //this is to scale it smaller while importing. we then scale it back up at the right moment.
+            foreach (Slot slot in data.TryGetSlot(scene.RootNode).GetAllChildren(false).ToArray())
+            {
+                if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>())
+                {
+                    await default(ToWorld);
+                    UnityPackageImporter.Msg("scaling bone " + slot.Name);
+                    slot.LocalPosition /= this.metafile.GlobalScale * 100;
+                    await default(ToBackground);
+                }
+            }
 
             foreach (FrooxEngine.SkinnedMeshRenderer mesh in this.data.skinnedRenderers)
             {
@@ -152,18 +164,71 @@ namespace UnityPackageImporter.Models
                 skinnedrenderer.createdMeshRenderer.SetupBlendShapes();
 
 
-                skinnedrenderer.createdMeshRenderer.Materials.Clear();
-                //we will replace these missing ones later.
-                for (int j = 0; j < skinnedrenderer.createdMeshRenderer.Mesh.Asset.Data.SubmeshCount; j++)
+                
+                //we will replace these missing ones later with m_modifications
+                List<string> materialnames = new List<string>();
+
+                
+
+                for (int i = 0; i < skinnedrenderer.createdMeshRenderer.Materials.Count; i++)
                 {
-                    //skinnedrenderer.createdMeshRenderer.Mesh.Asset.Data.Submeshes
-                    UnlitMaterial missingmat = this.importTaskAssetSlot.FindChildOrAdd("Missing Material").GetComponentOrAttach<UnlitMaterial>();
-                    missingmat.TintColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
-                    skinnedrenderer.createdMeshRenderer.Materials.Add().Target = missingmat;
+
+                    materialnames.Add(skinnedrenderer.createdMeshRenderer.Materials[i].FindNearestParent<Slot>().Name.Replace("Material: ", "").Trim());
+                }
+                skinnedrenderer.createdMeshRenderer.Materials.Clear();
+
+                for (int i = 0; i < skinnedrenderer.createdMeshRenderer.Mesh.Asset.Data.SubmeshCount; i++) {
+                    IAssetProvider<FrooxEngine.Material> finalmaterial;
+                    try
+                    {
+                        if (this.metafile.externalObjects != null)
+                        {
+                            if (this.metafile.externalObjects.TryGetValue(materialnames[i], out SourceObj material))
+                            {
+                                if (this.importTaskAssetSlot.FindChildInHierarchy(materialnames[i] + FileImportHelperTaskMaterial.materialNameIdentifyEndingPrefab) == null)
+                                {
+                                    await default(ToWorld);
+                                    finalmaterial = await new FileImportHelperTaskMaterial(material.guid, this.importer.AssetIDDict[material.guid], this.importer).runImportFileMaterialsAsync();
+                                    await default(ToBackground);
+                                }
+                                else
+                                {
+                                    //lordie this statement length! - @989onan
+                                    finalmaterial = this.importTaskAssetSlot.FindChildInHierarchy(materialnames[i] + FileImportHelperTaskMaterial.materialNameIdentifyEndingPrefab).Components.FirstOrDefault() as IAssetProvider<FrooxEngine.Material>;
+                                }
+                                
+                            }
+                            else
+                            {
+                                UnlitMaterial missing = this.importTaskAssetSlot.FindChildOrAdd("Missing Material").GetComponentOrAttach<UnlitMaterial>();
+                                missing.TintColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
+                                finalmaterial = missing;
+                                UnityPackageImporter.Msg("The material " + materialnames[i] + " importing could not find it's corrosponding mesh name!");
+                            }
+                        }
+                        else
+                        {
+                            UnlitMaterial missing = this.importTaskAssetSlot.FindChildOrAdd("Missing Material").GetComponentOrAttach<UnlitMaterial>();
+                            missing.TintColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
+                            finalmaterial = missing;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        UnityPackageImporter.Msg("The material " + materialnames[i] + " importing encountered an error!");
+                        throw e;
+                    }
+                    await default(ToWorld);
+                    
+                    skinnedrenderer.createdMeshRenderer.Materials.Add().Target = finalmaterial;
+
+
                 }
 
-
-                FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
+                if (!FILEID_To_Slot_Pairs.ContainsKey(identifier))
+                {
+                    FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
+                }
             }
 
 
@@ -207,8 +272,11 @@ namespace UnityPackageImporter.Models
             calclatedobj.instanciated = true;
             calclatedobj.frooxEngineSlot = curnode;
             calclatedobj.m_CorrespondingSourceObject = findRealSource(curnode.Name, "GameObject", FindSlotPath(curnode, SceneRoot));
-
-            FILEID_into_Slot_Pairs.Add(calclatedobj.m_CorrespondingSourceObject, calclatedobj);
+            if (!FILEID_into_Slot_Pairs.ContainsKey(calclatedobj.m_CorrespondingSourceObject))
+            {
+                FILEID_into_Slot_Pairs.Add(calclatedobj.m_CorrespondingSourceObject, calclatedobj);
+            }
+            
 
             
             FrooxEngineRepresentation.GameObjectTypes.Transform calclatedTransformobj = new FrooxEngineRepresentation.GameObjectTypes.Transform();
@@ -217,8 +285,10 @@ namespace UnityPackageImporter.Models
             calclatedTransformobj.m_CorrespondingSourceObject = findRealSource(curnode.Name, "Transform", FindSlotPath(curnode, SceneRoot));
 
             //UnityPackageImporter.Msg($"{Calculated_fileidtransform} was made from transform \"{curnode.Name}\" with path \"{transformpath}\"");
-
-            FILEID_into_Slot_Pairs.Add(calclatedTransformobj.m_CorrespondingSourceObject, calclatedTransformobj);
+            if (!FILEID_into_Slot_Pairs.ContainsKey(calclatedTransformobj.m_CorrespondingSourceObject))
+            {
+                FILEID_into_Slot_Pairs.Add(calclatedTransformobj.m_CorrespondingSourceObject, calclatedTransformobj);
+            }
             if (root.ChildCount > 0)
             {
                 foreach(Node child in root.Children)

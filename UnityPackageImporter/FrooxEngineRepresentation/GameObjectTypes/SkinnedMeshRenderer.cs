@@ -21,7 +21,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public SourceObj m_Mesh;
         public List<Dictionary<string, ulong>> m_Bones;
         public FrooxEngine.SkinnedMeshRenderer createdMeshRenderer;
-        public GameObject parentobj;
         public SourceObj m_CorrespondingSourceObject { get; set; }
         public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
@@ -33,18 +32,76 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
             if (!instanciated)
             {
-
+                bool NotFromInLinePrefab = true; //
                 instanciated = true;
+
+                if (this.id == 0) return;//to get rid of a nasty bug I don't wanna find the source of TODO: What is causing this?
 
                 try
                 {
-                    if (importer.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(m_Mesh.guid, out FileImportTaskScene importedfbx2))
+                    
+                    if (m_CorrespondingSourceObject != null)
                     {
-                        
-                        if(m_CorrespondingSourceObject.guid == null)
+                        if (m_CorrespondingSourceObject.guid != null)
                         {
+                            UnityPackageImporter.Msg("Importing skinned mesh renderer via corrosponding object. this id is: \"" + this.id + "\"");
+                            NotFromInLinePrefab = false;
+                            if (importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject parentobj_inc))
+                            {
+                                PrefabInstance prefab;
+                                try
+                                {
+                                    await default(ToWorld);
+                                    await parentobj_inc.instanciateAsync(importer);
+                                    await default(ToWorld);
+                                    prefab = parentobj_inc as PrefabInstance;
+
+                                    if (prefab.PrefabHashes.TryGetValue(this.m_CorrespondingSourceObject, out IUnityObject gameobj))
+                                    {
+                                        try
+                                        {
+                                            FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newskin = (gameobj as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
+                                            await default(ToWorld);
+                                            await gameobj.instanciateAsync(importer);
+                                            await default(ToWorld);
+                                            this.createdMeshRenderer = newskin.createdMeshRenderer;
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_CorrespondingSourceObject.guid + "\" could not assign itself to a prefab hash!");
+                                            throw ex;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_CorrespondingSourceObject.guid + "\" could not find/create it's parent game obj!");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_CorrespondingSourceObject.guid + "\" could not create it's parent game obj!");
+                                    throw ex;
+                                }
+                            }
+                            else
+                            {
+                                UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_CorrespondingSourceObject.guid + "\" could not find it's parent prefab obj!");
+                            }
+                            
+                        }
+
+                    }
+                    GameObject parentobj = null;
+                    if (NotFromInLinePrefab)
+                    {
+                        UnityPackageImporter.Msg("Importing skinned mesh renderer via mesh guid. this id is: \"" + this.id+"\"");
+                        if (importer.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(m_Mesh.guid, out FileImportTaskScene importedfbx2))
+                        {
+
+
                             importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject parentobj_inc);
                             parentobj = parentobj_inc as GameObject;
+                            
 
                             foreach (var pair in importedfbx2.FILEID_To_Slot_Pairs)
                             {
@@ -56,7 +113,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                                     if (newskin.createdMeshRenderer.Slot.Name.Equals(parentobj.frooxEngineSlot.Name))
                                     {
 
-                                        
+
 
                                         await default(ToWorld);
                                         await parentobj.instanciateAsync(importer);
@@ -81,37 +138,18 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         }
                         else
                         {
-                            importer.existingIUnityObjects.TryGetValue(m_PrefabInstance["fileID"], out IUnityObject parentobj_inc);
-                            await default(ToWorld);
-                            await parentobj_inc.instanciateAsync(importer);
-                            await default(ToWorld);
-                            PrefabInstance prefab = parentobj_inc as PrefabInstance;
-
-                            if (prefab.PrefabHashes.TryGetValue(this.m_CorrespondingSourceObject, out IUnityObject gameobj)) {
-                                FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer newskin = (gameobj as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer);
-                                parentobj.frooxEngineSlot = newskin.createdMeshRenderer.Slot;
-                                this.createdMeshRenderer = newskin.createdMeshRenderer;
-                            }
-                            else
-                            {
-                                UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_Mesh.guid + "\" could not find/create it's parent game obj!");
-                            }
-                            
+                            UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_Mesh.guid + "\" could not find the pre-imported FBX!");
                         }
-                        
-                        
-                        
 
-                        if(parentobj == null)
+                        if (parentobj == null)
                         {
-                            UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_Mesh.guid + "\" could not find/create it's parent game obj with name \""+ parentobj.frooxEngineSlot.Name + "\"!");
+                            UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \"" + m_Mesh.guid + "\" could not find/create it's parent game obj with name \"" + parentobj.frooxEngineSlot.Name + "\"!");
                         }
                     }
-                    else
-                    {
-                        UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render with a guid of \""+ m_Mesh.guid + "\" could not find the pre-imported FBX!");
-                    }
-                        
+                    
+
+
+
                     
                 }
                 catch (Exception ex)
@@ -131,7 +169,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                             UnityPackageImporter.Warn("The prefab is malformed!!! a skinned mesh render does not have a valid parent obj type! Your renderer will come out mis-shapen!");
                         }
                     }
-                    UnityPackageImporter.Warn(ex.Message, ex.StackTrace);
+                    //UnityPackageImporter.Warn(ex.Message, ex.StackTrace);
+                    throw ex;
                 }
 
 
@@ -185,7 +224,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                 }
 
-                if (importer.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(m_Mesh.guid, out FileImportTaskScene importedfbx))
+                if (NotFromInLinePrefab) //this basically says that this skinned renderer is not coming from an inline prefab from a scene import
                 {
                     FrooxEngine.SkinnedMeshRenderer FoundMesh = this.createdMeshRenderer;
                     //FoundMesh.Mesh.ReferenceID = (skinnedMeshRenderer as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer).createdMeshRenderer.Mesh.ReferenceID;
@@ -315,10 +354,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                     UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + FoundMesh.Slot.Name + "\" imported!");
                 }
-                else
-                {
-                    UnityPackageImporter.Msg("Skinned Mesh Renderer \"" + parentobj.m_Name + "\" could not find it's source mesh on the target file \""+ importedfbx.file+ "\"!");
-                }
 
                 
 
@@ -336,14 +371,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             StringBuilder result = new StringBuilder();
             result.AppendLine("id: " + id.ToString());
             result.AppendLine("instanciated: " + instanciated.ToString());
-            if (parentobj != null)
-            {
-                result.AppendLine("parentobj: " + parentobj.ToString());
-            }
-            else
-            {
-                result.AppendLine("parentobj: null");
-            }
             if (m_CorrespondingSourceObject != null)
             {
                 result.AppendLine("m_CorrespondingSourceObject: " + m_CorrespondingSourceObject.ToString());

@@ -83,6 +83,7 @@ namespace UnityPackageImporter
             //clear previous before we start
             storagebones.Clear();
             fileIDToRecycleName.Clear();
+            externalObjects.Clear();
             //bonereading section
             string boneName = string.Empty;
             string boneNameHuman = string.Empty;

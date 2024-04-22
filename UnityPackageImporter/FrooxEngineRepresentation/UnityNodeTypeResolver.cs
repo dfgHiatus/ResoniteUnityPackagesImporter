@@ -21,11 +21,11 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 
                 if (!int.TryParse(nodeEvent.Tag.Value.Replace(UnityTagPrefix, ""), out unityObjectId))
                 {
-                    UnityPackageImporter.Msg("This is a test, the anchor is: \"" + anchor.ToString() + "\" returning 2: false");
+                    //UnityPackageImporter.Msg("This is a test, the anchor is: \"" + anchor.ToString() + "\" returning 2: false");
                     return false;
                 }
                 anchor = ulong.Parse(nodeEvent.Anchor.Value);
-                UnityPackageImporter.Msg("This is a test, the anchor is: \"" + anchor.ToString() + "\" returning: true");
+                //UnityPackageImporter.Msg("This is a test, the anchor is: \"" + anchor.ToString() + "\" returning: true");
                 currentType = typeof(UnityEngineObjectWrapper);
                 return true;
 
@@ -33,7 +33,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
             }
             else
             {
-                UnityPackageImporter.Msg("This is a test, the anchor is: \"" + anchor.ToString() + "\" returning: false");
+                //UnityPackageImporter.Msg("This is a test, the anchor is: \"" + anchor.ToString() + "\" returning: false");
                 return false;
             }
             
