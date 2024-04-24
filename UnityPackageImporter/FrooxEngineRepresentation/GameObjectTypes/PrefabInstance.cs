@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.Models;
+using static FrooxEngine.MeshEmitter;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -18,6 +19,9 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public SourceObj m_CorrespondingSourceObject { get; set; }
         public SourceObj m_SourcePrefab { get; set; }
 
+
+        public FileImportTaskScene importask = null;
+
         public GameObject ImportRoot { get; set; }
 
         public ModPrefab m_Modification { get; set; }
@@ -25,7 +29,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
         public Dictionary<SourceObj, IUnityObject> PrefabHashes = new Dictionary<SourceObj, IUnityObject>(new SourceObjCompare());
-
 
         public async Task instanciateAsync(IUnityStructureImporter importer)
         {
@@ -49,10 +52,22 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         Slot targetParent;
                         if (m_Modification != null)
                         {
-                            if (importer.existingIUnityObjects.TryGetValue(m_Modification.m_TransformParent["fileID"], out IUnityObject foundobjectparent))
+                            if (importer.existingIUnityObjects.TryGetValue(m_Modification.m_TransformParent["fileID"], out IUnityObject foundtransformparent))
                             {
-                                await foundobjectparent.instanciateAsync(importer);
-                                targetParent = (foundobjectparent as GameObject).frooxEngineSlot;
+                                await default(ToWorld);
+                                await foundtransformparent.instanciateAsync(importer);
+                                await default(ToBackground);
+                                if(importer.existingIUnityObjects.TryGetValue((foundtransformparent as Transform).m_GameObjectID, out IUnityObject parentobjnew)){
+                                    await default(ToWorld);
+                                    await parentobjnew.instanciateAsync(importer);
+                                    await default(ToBackground);
+                                    targetParent = (parentobjnew as GameObject).frooxEngineSlot;
+                                }
+                                else
+                                {
+                                    UnityPackageImporter.Warn("targetParent had a value for prefab \"" + id.ToString() + "\" but could not find the id \"" + (foundtransformparent as Transform).m_GameObjectID + "\" in the list of game objects that exist in scene!");
+                                    targetParent = importer.CurrentStructureRootSlot;
+                                }
                             }
                             else
                             {
@@ -64,71 +79,65 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                             targetParent = importer.CurrentStructureRootSlot;
                         }
 
-                        ImportRoot = new GameObject();
+                        
                         UnityPackageImporter.Msg("is targetParent instanciated?: " + (targetParent != null));
-                        await default(ToWorld);
-                        ImportRoot.frooxEngineSlot = importer.unityProjectImporter.SharedImportedFBXScenes[m_SourcePrefab.guid].FinishedFileSlot.Duplicate();
-                        ImportRoot.frooxEngineSlot.SetParent(targetParent);
-
-
-                        await default(ToBackground);
-
-                        this.PrefabHashes = importer.unityProjectImporter.SharedImportedFBXScenes[m_SourcePrefab.guid].FILEID_To_Slot_Pairs;
-                        if (m_Modification != null)
+                        
+                        if(importask == null)
                         {
-                            foreach (ModsPrefab mod in m_Modification.m_Modifications)
+                            ImportRoot = new GameObject();
+                            await default(ToWorld);
+                            if (importer.unityProjectImporter.SharedImportedFBXScenes.ContainsKey(m_SourcePrefab.guid))
                             {
-                                UnityPackageImporter.Msg("is the current modification instanciated?: " + (mod != null));
-                                if (this.PrefabHashes.TryGetValue(mod.target, out IUnityObject targetobj))
+                                importask = await importer.unityProjectImporter.SharedImportedFBXScenes[m_SourcePrefab.guid].MakeCopyAndPopulatePrefabData();
+                                ImportRoot.frooxEngineSlot = importask.FinishedFileSlot;
+                                ImportRoot.frooxEngineSlot.SetParent(targetParent);
+
+                                await default(ToBackground);
+
+                                SourceObj importrootsource = new SourceObj();
+                                importrootsource.guid = this.m_SourcePrefab.guid;
+                                importrootsource.fileID = 919132149155446097; //hash of root object path.
+                                importrootsource.type = 3;
+
+                                this.PrefabHashes = importask.FILEID_To_Slot_Pairs;
+                                this.PrefabHashes.Add(importrootsource, ImportRoot);
+                                if (m_Modification != null)
                                 {
-                                    Type targettype = targetobj.GetType();
-                                    try
+                                    foreach (ModsPrefab mod in m_Modification.m_Modifications)
                                     {
-                                        //This is so bad, since it does a lot of reflection, but there's no better way of doing this since the hash of the object we're targeting doesn't actually represent the class of the type we made from it. - @989onan
-                                        if (targettype.GetProperty(mod.propertyPath).GetValue(targetobj).GetType() == typeof(int))
+                                        IUnityObject targetobj2 = null;
+                                        IUnityObject targetobj3 = null;
+                                        if (this.PrefabHashes.TryGetValue(mod.target, out IUnityObject targetobj) || importer.existingIUnityObjects.TryGetValue((ulong)(mod.target.fileID + (2 ^ 64)), out targetobj2) || importer.existingIUnityObjects.TryGetValue((ulong)(mod.target.fileID), out targetobj3))
                                         {
-                                            int.TryParse(mod.value, out int value);
-                                            targettype.GetProperty(mod.propertyPath).SetValue(Convert.ChangeType(targetobj, targettype), value);
-                                        }
-                                        else if (targettype.GetProperty(mod.propertyPath).GetValue(targetobj).GetType() == typeof(float))
-                                        {
-                                            float.TryParse(mod.value, out float value);
-                                            targettype.GetProperty(mod.propertyPath).SetValue(Convert.ChangeType(targetobj, targettype), value);
-                                        }
-                                        else if (targettype.GetProperty(mod.propertyPath).GetValue(targetobj).GetType() == typeof(bool))
-                                        {
-                                            bool.TryParse(mod.value, out bool value);
-                                            targettype.GetProperty(mod.propertyPath).SetValue(Convert.ChangeType(targetobj, targettype), value);
-                                        }
-                                        else if (targettype.GetProperty(mod.propertyPath).GetValue(targetobj).GetType() == typeof(string))
-                                        {
-                                            targettype.GetProperty(mod.propertyPath).SetValue(Convert.ChangeType(targetobj, targettype), mod.value);
+                                            targetobj = targetobj ?? targetobj2 ?? targetobj3; //get first available match.
+                                            if (MModificationsParser.ParseModifcation(targetobj, mod))
+                                            {
+                                                UnityPackageImporter.Msg("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene has parsed a modification with the hash \"" + mod.target.ToString() + "\" successfully.");
+                                            }
+                                            else
+                                            {
+                                                UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene is malformed!!! The modification with the hash \"" + mod.target.ToString() + "\" could not be parsed!");
+                                            }
+
                                         }
                                         else
                                         {
-                                            UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the current structure is malformed!!! The modification with the hash \"" + mod.target.fileID + "\" has a value of \"" + mod.value + "\", which doesn't cast to any: " +
-                                                "int, float, string" +
-                                                ".");
-
+                                            UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene is malformed!!! The modification with the hash \"" + mod.target.ToString() + "\" does not match any in the list of hashes on the prefab \"" + id.ToString() + "\"");
                                         }
 
                                     }
-                                    catch (Exception e)
-                                    {
-                                        UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene is malformed!!! The modification with the hash \"" + mod.propertyPath + "\" does not exist! ");
-                                        UnityPackageImporter.Warn(e.Message + e.StackTrace);
-                                    }
-
 
                                 }
-                                else
-                                {
-                                    UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene is malformed!!! The modification with the hash \"" + mod.target.fileID + "\" does not match any in the list of hashes on the prefab \"" + id.ToString() + "\"");
-                                }
-
                             }
-
+                            else
+                            {
+                                UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene is malformed!!! cannot find file with GUID of \"" + m_SourcePrefab.guid.ToString() + "\" for this prefab! (does it exist in the unity project?)");
+                            }
                         }
+                         
+
+
+                        
 
                     }
                     else

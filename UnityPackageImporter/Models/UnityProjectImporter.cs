@@ -132,19 +132,23 @@ namespace UnityPackageImporter
             UnityPackageImporter.Msg("checking if this FBX is a humanoid");
             Slot taskSlot = FBXRoot;
 
-            await task.metafile.ScanFile(task, taskSlot); //we have to scan again here, since the slots may have changed names.
-            await task.metafile.GenerateComponents(taskSlot);
+            BipedRig biped = taskSlot.AttachComponent<BipedRig>();
+            await task.metafile.ScanFile(task, FBXRoot);
+            await task.metafile.GenerateComponents(biped);
+            
 
-            bool isBiped = task.metafile.modelBoneHumanoidAssignments.IsBiped;
 
             //EXPLAINATION OF THIS CODE:
             //we are using the froox engine data made from assimp to force our model onto what we generated instead of
             //what froox engine made. This is better than asking froox engine to fully import the model for us
             //we get more control this way.
-            if (isBiped) {
+            if (biped.IsBiped) {
 
                 await default(ToWorld);
-                
+
+                Slot movecenter = taskSlot.Parent.AddSlot(taskSlot.Name + " - Move Me With This!");
+                taskSlot.SetParent(movecenter);
+
                 Rig rig = taskSlot.GetComponent<Rig>();
                 if (rig == null)
                 {
@@ -161,7 +165,7 @@ namespace UnityPackageImporter
 
                 await default(ToWorld);
                 UnityPackageImporter.Msg("Finding if we set up VRIK and are biped.");
-                if (isBiped)
+                if (biped.IsBiped)
                 {
                     UnityPackageImporter.Msg("We have not set up vrik!");
 
@@ -180,8 +184,9 @@ namespace UnityPackageImporter
                         if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>())
                         {
 
-                            UnityPackageImporter.Msg("scaling bone " + slot.Name);
-                            slot.LocalPosition *= task.metafile.GlobalScale * 100;
+                            UnityPackageImporter.Msg("adding bone " + slot.Name +" with scale \""+ task.metafile.GlobalScale + "\"");
+                            slot.LocalPosition /= task.metafile.GlobalScale;
+                            rig.Bones.AddUnique(slot);
                         }
 
 
@@ -189,7 +194,7 @@ namespace UnityPackageImporter
                         BodyNode node = BodyNode.NONE;
                         try
                         {
-                            node = task.metafile.modelBoneHumanoidAssignments.Bones.FirstOrDefault(i => i.Value.Target.Name.Equals(slot.Name)).key;
+                            node = biped.Bones.FirstOrDefault(i => i.Value.Target.Name.Equals(slot.Name)).key;
                         }
                         catch (Exception) { } //this is to catch key not found so we shouldn't handle this.
 
@@ -226,8 +231,8 @@ namespace UnityPackageImporter
 
                                 await default(ToWorld);
                                 CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
-                                capsuleCollider.Radius.Value = value*100;
-                                capsuleCollider.Height.Value = magnitude*100;
+                                capsuleCollider.Radius.Value = value;
+                                capsuleCollider.Height.Value = magnitude;
                             }
                         }
 
@@ -258,18 +263,29 @@ namespace UnityPackageImporter
                     VRIK vrik = rootnode.AttachComponent<VRIK>(true, null);
                     vrik.Solver.SimulationSpace.Target = rootnode.Parent;
                     vrik.Solver.OffsetSpace.Target = rootnode.Parent;
+                    //this is here to initialize our Rig's biped forward at the end of the import for VRIK later on.
+                    biped.GuessForwardFlipped();
+                    try
+                    {
+                        biped.DetectHandRigs();
+                    }
+                    catch (Exception e)
+                    {
+                        UnityPackageImporter.Msg("Error when detecting hand rigs for model \"" + task.file + "\"");
+                        UnityPackageImporter.Msg(e.Message,e.StackTrace);
+                    }
                     vrik.Initiate();//create our vrik component using our custom biped rig as our humanoid. Since it's on the same slot.
 
                     //set our ik draggables up so people can play with the model and know it worked. - @989onan
                     //ps, stolen from FrooxEngine decompiled code.
-                    Slot slot3 = task.metafile.modelBoneHumanoidAssignments[BodyNode.Head];
-                    Slot slot4 = task.metafile.modelBoneHumanoidAssignments[BodyNode.Hips];
-                    Slot slot5 = task.metafile.modelBoneHumanoidAssignments[BodyNode.LeftHand];
-                    Slot slot6 = task.metafile.modelBoneHumanoidAssignments[BodyNode.RightHand];
-                    Slot slot7 = task.metafile.modelBoneHumanoidAssignments[BodyNode.LeftFoot];
-                    Slot slot8 = task.metafile.modelBoneHumanoidAssignments[BodyNode.RightFoot];
-                    Slot slot9 = task.metafile.modelBoneHumanoidAssignments.TryGetBone(BodyNode.LeftToes);
-                    Slot slot10 = task.metafile.modelBoneHumanoidAssignments.TryGetBone(BodyNode.RightToes);
+                    Slot slot3 = biped[BodyNode.Head];
+                    Slot slot4 = biped[BodyNode.Hips];
+                    Slot slot5 = biped[BodyNode.LeftHand];
+                    Slot slot6 = biped[BodyNode.RightHand];
+                    Slot slot7 = biped[BodyNode.LeftFoot];
+                    Slot slot8 = biped[BodyNode.RightFoot];
+                    Slot slot9 = biped.TryGetBone(BodyNode.LeftToes);
+                    Slot slot10 = biped.TryGetBone(BodyNode.RightToes);
                     ModelImporter.SetupDraggable(slot3, vrik.Solver, vrik.Solver.spine.IKPositionHead, vrik.Solver.spine.IKRotationHead, vrik.Solver.spine.PositionWeight);
                     ModelImporter.SetupDraggable(slot4, vrik.Solver, vrik.Solver.spine.IKPositionPelvis, vrik.Solver.spine.IKRotationPelvis, vrik.Solver.spine.PelvisPositionWeight);
                     ModelImporter.SetupDraggable(slot5, vrik.Solver, vrik.Solver.leftArm.IKPosition, vrik.Solver.leftArm.IKRotation, vrik.Solver.leftArm.PositionWeight);

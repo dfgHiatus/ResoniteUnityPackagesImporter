@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.Models;
+using static FrooxEngine.FinalIK.VRIKAvatar;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
@@ -15,8 +16,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public TransformFloat4 m_LocalRotation;
         public TransformFloat3 m_LocalPosition;
         public TransformFloat3 m_LocalScale;
-        
-        
+        public TransformFloat3 m_LocalEulerAnglesHint; //this is an error supressor. this does nothing don't use it. - @989onan
+
         public ulong id { get; set; }
         public int m_RootOrder;
         public bool instanciated {  get; set; }
@@ -64,58 +65,51 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                             {
                                 this.parentHashedGameObj = alreadydefined.parentHashedGameObj;
 
-                                
 
+                                UnityPackageImporter.Msg("transform import stage 1");
                                 foreach (IUnityObject variab in importer.existingIUnityObjects.Values)
                                 {
-                                    if(variab.GetType() == typeof(GameObject))
+                                    if (variab.GetType() == typeof(GameObject))
                                     {
                                         GameObject actual = variab as GameObject;
-                                        if(actual.m_CorrespondingSourceObject != null)
+                                        if (actual.m_CorrespondingSourceObject != null)
                                         {
-                                            if(actual.m_CorrespondingSourceObject.fileID != 0)
+                                            if (actual.m_CorrespondingSourceObject.fileID != 0)
                                             {
                                                 if (actual.m_CorrespondingSourceObject.fileID == alreadydefined.parentHashedGameObj.m_CorrespondingSourceObject.fileID
-                                                    && actual.m_CorrespondingSourceObject.guid.Equals(alreadydefined.parentHashedGameObj.m_CorrespondingSourceObject.guid)
-                                                    )
+                                                    && actual.m_CorrespondingSourceObject.guid.Equals(alreadydefined.parentHashedGameObj.m_CorrespondingSourceObject.guid))
                                                 {
+                                                    UnityPackageImporter.Msg("transform import stage 1.5");
                                                     this.parentHashedGameObj = actual;
                                                 }
                                             }
                                         }
-
-                                    }
-
-                                }
-
-                                
-                                if (this.parentHashedGameObj.id == alreadydefined.parentHashedGameObj.id)
-                                {
-                                    try
-                                    {
-                                        UnityPackageImporter.Warn("The inline prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" and a target game object id of \"" + alreadydefined.parentHashedGameObj + "\"did not find it's parent transform's game object! this will split your import in half heiarchy wise! This should never happen!");
-                                    }
-                                    catch
-                                    {
-                                        UnityPackageImporter.Warn("The inline prefab is malformed!!! the transform with an id \"" + id.ToString() + "\" and a guid of \"null\"did not find it's parent transform's game object! this will split your import in half heiarchy wise! This should never happen!");
                                     }
                                 }
+                                UnityPackageImporter.Msg("transform import stage 3");
                                 await default(ToWorld);
                                 await this.parentHashedGameObj.instanciateAsync(importer);
                                 await default(ToBackground);
 
 
-
+                                UnityPackageImporter.Msg("transform import stage 4");
                                 this.m_GameObject = new Dictionary<string, ulong>
                                 {
                                     { "fileID", this.parentHashedGameObj.id}
                                 };
                                 m_GameObjectID = m_GameObject["fileID"];
 
-                                this.m_LocalPosition = new TransformFloat3(this.parentHashedGameObj.frooxEngineSlot.LocalPosition.x, this.parentHashedGameObj.frooxEngineSlot.LocalPosition.y, this.parentHashedGameObj.frooxEngineSlot.LocalPosition.z);
-                                this.m_LocalRotation = new TransformFloat4(this.parentHashedGameObj.frooxEngineSlot.LocalRotation.x, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.y, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.z, this.parentHashedGameObj.frooxEngineSlot.LocalRotation.w);
-                                this.m_LocalScale = new TransformFloat3(this.parentHashedGameObj.frooxEngineSlot.LocalScale.x, this.parentHashedGameObj.frooxEngineSlot.LocalScale.y, this.parentHashedGameObj.frooxEngineSlot.LocalScale.z);
+                                UnityPackageImporter.Msg("transform import stage 5");
+                                await default(ToWorld);
+                                this.m_LocalRotation = alreadydefined.m_LocalRotation;
+                                this.m_LocalPosition = alreadydefined.m_LocalPosition;
+                                this.m_LocalScale = alreadydefined.m_LocalScale;
 
+                                this.parentHashedGameObj.frooxEngineSlot.LocalPosition = new float3(this.m_LocalPosition.x, this.m_LocalPosition.y, this.m_LocalPosition.z);
+                                this.parentHashedGameObj.frooxEngineSlot.LocalRotation = new floatQ(this.m_LocalRotation.x, this.m_LocalRotation.y, this.m_LocalRotation.z, this.m_LocalRotation.w);
+                                this.parentHashedGameObj.frooxEngineSlot.LocalScale = new float3(this.m_LocalScale.x, this.m_LocalScale.y, this.m_LocalScale.z);
+                                await default(ToBackground);
+                                UnityPackageImporter.Msg("transform import stage 6");
                             }
                             catch (Exception ex)
                             {

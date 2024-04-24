@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Security.Policy;
 using System.Threading.Tasks;
 using UnityPackageImporter.FrooxEngineRepresentation;
@@ -16,11 +17,14 @@ namespace UnityPackageImporter.Models
 {
     public class FileImportHelperTaskMaterial
     {
-        public string file;
-        public string myID;
+        private string file;
+        private string myID;
         public Slot assetsRoot;
         public Slot matslot;
         public UnityProjectImporter importer;
+        public FrooxEngine.PBS_Metallic finalMaterial;
+        public bool ismissing = false;
+        private bool finished = false;
 
         public static string materialNameIdentifyEndingPrefab = " - Material";
 
@@ -30,22 +34,36 @@ namespace UnityPackageImporter.Models
             this.file = file;
             UnityPackageImporter.Msg("Importing material with ID: \""+myID+"\"");
             assetsRoot = importer.importTaskAssetRoot;
-            matslot = assetsRoot.AddSlot(Path.GetFileNameWithoutExtension(this.file) + materialNameIdentifyEndingPrefab);
+            matslot = assetsRoot.FindChildOrAdd(Path.GetFileNameWithoutExtension(this.file) + materialNameIdentifyEndingPrefab);
+            finalMaterial = matslot.GetComponentOrAttach<FrooxEngine.PBS_Metallic>();
             this.myID = myID;
+        }
+
+
+        //to assign a material to a missing material during import if the fbx doesn't have a definition for it, so later we can assign the material.
+        public FileImportHelperTaskMaterial(UnityProjectImporter importer)
+        {
+            this.importer = importer;
+            UnityPackageImporter.Msg("Importing material with ID: \"" + myID + "\"");
+            assetsRoot = importer.importTaskAssetRoot;
+            matslot = assetsRoot.FindChildOrAdd("MISSING_ERROR" + materialNameIdentifyEndingPrefab);
+            finalMaterial = importer.importTaskAssetRoot.FindChildOrAdd("Missing Material").GetComponentOrAttach<FrooxEngine.PBS_Metallic>();
+            finalMaterial.EmissiveColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
+            finalMaterial.AlbedoColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
+            ismissing = true;
+            finished = true;
         }
 
         public async Task<FrooxEngine.PBS_Metallic> runImportFileMaterialsAsync()
         {
             await default(ToBackground);
+            if (ismissing || finished) return finalMaterial; //so that if something trys to make ourselves but we were instanciated as missing, do nothing.
             return await ImportFileMaterial();
         }
 
 
         private async Task<FrooxEngine.PBS_Metallic> ImportFileMaterial()
         {
-            await default(ToWorld);
-            FrooxEngine.PBS_Metallic finalMaterial = matslot.AttachComponent<FrooxEngine.PBS_Metallic>();
-            await default(ToBackground);
             bool inTextureBlock = false;
             await default(ToBackground);
             string texturename = string.Empty;
@@ -224,6 +242,7 @@ namespace UnityPackageImporter.Models
             }
 
             await default(ToBackground);
+            finished = true;
             return finalMaterial;
 
         }

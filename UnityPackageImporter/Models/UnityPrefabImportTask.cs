@@ -50,13 +50,33 @@ namespace UnityPackageImporter.Models
 
 
                 //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
-                await default(ToWorld);
                 foreach (var obj in existingIUnityObjects)
                 {
-                    await obj.Value.instanciateAsync(this);
-                    debugPrefab.Append(obj.Value.ToString());
+                    UnityPackageImporter.Msg("loading object for prefab \"" + ID.Value + "\" with an id of \"" + obj.Value.id.ToString() + "\"");
+                    try
+                    {
+                        await obj.Value.instanciateAsync(this);
+                    }
+                    catch (Exception e)
+                    {
+                        UnityPackageImporter.Warn("Prefab IUnityObject failed to instanciate!");
+                        UnityPackageImporter.Msg("Prefab IUnityObject ID: \"" + obj.Value.id.ToString() + "\"");
+                        UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                    }
+                    try
+                    {
+                        debugPrefab.Append(obj.Value.ToString());
+                    }
+                    catch (Exception e)
+                    {
+                        UnityPackageImporter.Warn("Prefab IUnityObject could not be turned into a string!");
+                        UnityPackageImporter.Msg("Prefab IUnityObject ID: \"" + obj.Value.id.ToString() + "\"");
+                        UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                    }
+                    
+
+
                 }
-                await default(ToBackground);
 
                 List<IUnityObject> movethese = new List<IUnityObject>();
 
@@ -107,7 +127,7 @@ namespace UnityPackageImporter.Models
                         FrooxEngineRepresentation.GameObjectTypes.PrefabInstance prefab = obj.Value as FrooxEngineRepresentation.GameObjectTypes.PrefabInstance;
 
                         await UnityProjectImporter.SettupHumanoid(
-                            unityProjectImporter.SharedImportedFBXScenes[prefab.m_SourcePrefab.guid],
+                            prefab.importask,
                             prefab.ImportRoot.frooxEngineSlot);
                     }
                 }

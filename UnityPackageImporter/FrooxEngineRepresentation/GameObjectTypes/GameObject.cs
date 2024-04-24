@@ -44,7 +44,13 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         await default(ToBackground);
                         if (prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject existingobject))
                         {
-                            this.frooxEngineSlot = (existingobject as GameObject).frooxEngineSlot;
+                            GameObject existing = (existingobject as GameObject);
+                            await default(ToWorld);
+                            this.m_Name = existing.m_Name;
+                            this.frooxEngineSlot = existing.frooxEngineSlot;
+                            this.frooxEngineSlot.Name = this.m_Name;
+                            this.frooxEngineSlot.ActiveSelf = existing.m_IsActive == 1;
+                            await default(ToBackground);
                         }
 
 

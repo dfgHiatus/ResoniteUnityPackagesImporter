@@ -86,12 +86,13 @@
   <ItemGroup>
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Component.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\MeshCollider.cs" />
-    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\MonoBehavior.cs" />
+    <Compile Include="FrooxEngineRepresentation\GameObjectTypes\MonoBehaviour.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\NullType.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\PrefabInstance.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\RotationConstraint.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\SkinnedMeshRenderer.cs" />
     <Compile Include="FrooxEngineRepresentation\IUnityObject.cs" />
+    <Compile Include="FrooxEngineRepresentation\MModificationsParser.cs" />
     <Compile Include="FrooxEngineRepresentation\UnityEngineObjectWrapper.cs" />
     <Compile Include="FrooxEngineRepresentation\UnityNodeTypeResolver.cs" />
     <Compile Include="FrooxEngineRepresentation\GameObjectTypes\Transform.cs" />

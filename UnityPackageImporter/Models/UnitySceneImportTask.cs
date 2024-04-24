@@ -73,32 +73,29 @@ namespace UnityPackageImporter.Models
                 await default(ToWorld);
                 foreach (var obj in existingIUnityObjects)
                 {
+                    UnityPackageImporter.Msg("loading object for scene \"" + ID.Value + "\" with an id of \"" + obj.Value.id.ToString() + "\"");
                     try
                     {
-                        try
-                        {
-                            debugScene.Append(obj.Value.ToString());
-                        }
-                        catch (Exception e)
-                        {
-                            UnityPackageImporter.Warn("Scene object could not be turned into a string!");
-                            UnityPackageImporter.Msg("Scene object ID: \"" + obj.Value.id.ToString() + "\"");
-                            UnityPackageImporter.Warn(e.Message + e.StackTrace);
-                        }
-                        UnityPackageImporter.Msg("loading object for scene \"" + ID.Value + "\" with an id of \"" + obj.Value.id.ToString() + "\"");
-                        if (obj.Value.GetType() != typeof(FrooxEngineRepresentation.GameObjectTypes.PrefabInstance))
-                        {
-                            await obj.Value.instanciateAsync(this);
-                        }
-                        
-
+                        await obj.Value.instanciateAsync(this);
                     }
                     catch (Exception e)
                     {
-                        UnityPackageImporter.Warn("Scene object failed to instanciate!");
-                        UnityPackageImporter.Msg("Scene object ID: \"" + obj.Value.id.ToString() + "\"");
+                        UnityPackageImporter.Warn("Scene IUnityObject failed to instanciate!");
+                        UnityPackageImporter.Msg("Scene IUnityObject ID: \"" + obj.Value.id.ToString() + "\"");
                         UnityPackageImporter.Warn(e.Message + e.StackTrace);
                     }
+                    try
+                    {
+                        debugScene.Append(obj.Value.ToString());
+                    }
+                    catch (Exception e)
+                    {
+                        UnityPackageImporter.Warn("Scene IUnityObject could not be turned into a string!");
+                        UnityPackageImporter.Msg("Scene IUnityObject ID: \"" + obj.Value.id.ToString() + "\"");
+                        UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                    }
+                    
+                    
                     
                 }
                 await default(ToBackground);
@@ -177,7 +174,7 @@ namespace UnityPackageImporter.Models
                                         {
                                             await default(ToWorld);
                                             await UnityProjectImporter.SettupHumanoid(
-                                            unityProjectImporter.SharedImportedFBXScenes[prefab.m_SourcePrefab.guid],
+                                            prefab.importask,
                                             prefab.ImportRoot.frooxEngineSlot);
                                             await default(ToBackground);
                                         }
