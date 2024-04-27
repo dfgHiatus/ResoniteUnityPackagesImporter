@@ -17,7 +17,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
         public Dictionary<string, ulong> m_GameObject;
         public int m_Enabled = 1;
         public List<FileImportHelperTaskMaterial> materials = new List<FileImportHelperTaskMaterial>();
-        public List<SourceObj> m_Materials;
+        public List<SourceObj> m_Materials = new List<SourceObj>();
         public SourceObj m_Mesh;
         public List<Dictionary<string, ulong>> m_Bones;
         public FrooxEngine.SkinnedMeshRenderer createdMeshRenderer;
@@ -34,8 +34,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             {
                 bool NotFromInLinePrefab = true; //
                 instanciated = true;
-
-                if (this.id == 0) return;//to get rid of a nasty bug I don't wanna find the source of TODO: What is causing this?
 
                 try
                 {
@@ -66,6 +64,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                                             await default(ToWorld);
                                             this.createdMeshRenderer = newskin.createdMeshRenderer;
                                             this.materials = newskin.materials;
+                                            this.m_Materials = newskin.m_Materials;
                                             UnityPackageImporter.Warn("assigned skinned mesh renderer \"" + newskin.createdMeshRenderer.Slot.Name + "\" some properties from one already created by a prefab.");
                                         }
                                         catch (Exception ex)
@@ -283,44 +282,6 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                     }
 
-                    if (m_Materials != null)
-                    {
-                        if (m_Materials.Count > 0)
-                        {
-                            UnityPackageImporter.Msg("Skinned mesh renderer with id \"" + FoundMesh.Slot.Name.ToString() + "\" has an inline definition of materials. reimporting new ones for this material for it's variants");
-                            materials.Clear();
-                        }
-
-                        
-                        foreach (SourceObj material in m_Materials)
-                        {
-
-                            try
-                            {
-                                if (importer.unityProjectImporter.AssetIDDict.ContainsKey(material.guid))
-                                {
-                                    await default(ToWorld);
-                                    string file = importer.unityProjectImporter.AssetIDDict[material.guid];
-                                    materials.Add(new FileImportHelperTaskMaterial(material.guid, file, importer.unityProjectImporter));
-                                    await default(ToBackground);
-                                }
-                                else
-                                {
-                                    materials.Add(new FileImportHelperTaskMaterial(importer.unityProjectImporter));
-                                }
-
-                            }
-                            catch (Exception e)
-                            {
-                                UnityPackageImporter.Warn("Importing a material at index \"" + counter.ToString() + "\" on skinnedmeshrenderer named \"" + FoundMesh.Slot.Name + "\" threw an error!");
-                                UnityPackageImporter.Warn(e.Message + e.StackTrace);
-                            }
-
-                            counter++;
-
-                        }
-                    }
-
 
 
                     
@@ -330,12 +291,70 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                 }
 
+                for (int i = 0; i < m_Materials.Count; i++)
+                {
+
+                    SourceObj material = m_Materials[i];
+                    try
+                    {
+                        if (material.guid != string.Empty)
+                        {
+                            if (importer.unityProjectImporter.AssetIDDict.ContainsKey(material.guid))
+                            {
+                                await default(ToWorld);
+                                string filemat = importer.unityProjectImporter.AssetIDDict[material.guid];
+                                try
+                                {
+                                    materials.RemoveAt(i);
+                                    materials.Insert(i, new FileImportHelperTaskMaterial(material.guid, filemat, importer.unityProjectImporter));
+                                    UnityPackageImporter.Msg("Imported a material at index \"" + i + "\" on skinnedmeshrenderer named \"" + FoundMesh.Slot.Name + "\" by replacing one of the indices");
+                                }
+                                catch
+                                {
+                                    materials.Add(new FileImportHelperTaskMaterial(material.guid, filemat, importer.unityProjectImporter));
+                                    UnityPackageImporter.Msg("Imported a material at index \"" + i + "\" on skinnedmeshrenderer named \"" + FoundMesh.Slot.Name + "\" by tacking onto the end.");
+                                }
+                                    
+                                await default(ToBackground);
+                            }
+                            else
+                            {
+                                await default(ToWorld);
+                                UnityPackageImporter.Msg("Importing a material at index \"" + i + "\" on skinnedmeshrenderer named \"" + FoundMesh.Slot.Name + "\" has an overridden material but we can't find the material that has the override's GUID. (is it in the package?)");
+                                try
+                                {
+                                    materials.RemoveAt(i);
+                                    materials.Insert(i, new FileImportHelperTaskMaterial(importer.unityProjectImporter));
+                                }
+                                catch
+                                {
+                                    materials.Add(new FileImportHelperTaskMaterial(importer.unityProjectImporter));
+                                }
+                                await default(ToBackground);
+                            }
+                        }
+                        else
+                        {
+                            UnityPackageImporter.Msg("Importing a material at index \"" + i + "\" on skinnedmeshrenderer named \"" + FoundMesh.Slot.Name + "\" did not override. Using material generated at import.");
+                        }
+
+
+                    }
+                    catch (Exception e)
+                    {
+                        UnityPackageImporter.Warn("Importing a material at index \"" + i + "\" on skinnedmeshrenderer named \"" + FoundMesh.Slot.Name + "\" threw an error!");
+                        UnityPackageImporter.Warn(e.Message + e.StackTrace);
+                    }
+
+
+                }
+
                 UnityPackageImporter.Msg("clearing bad material objects for: \"" + FoundMesh.Slot.Name + "\"");
                 await default(ToWorld);
                 FoundMesh.Materials.Clear();
                 await default(ToBackground);
                 counter = 0;
-                UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\" it has \"" + this.materials.Count.ToString() + " \" materials in the generated list to instanciate and m_Materials being instanciated is: \"" + (m_Materials != null) + "\" ");
+                UnityPackageImporter.Msg("getting good material objects for: \"" + FoundMesh.Slot.Name + "\" it has \"" + this.materials.Count.ToString() + " \" materials in the generated list to instanciate and m_Materials being instanciated is: \"" + (m_Materials.Count > 0) + "\" ");
                 foreach (FileImportHelperTaskMaterial materialtask in this.materials)
                 {
                     try

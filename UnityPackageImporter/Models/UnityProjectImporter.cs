@@ -244,7 +244,7 @@ namespace UnityPackageImporter
                     Elements.Core.BoundingBox boundingBox = Elements.Core.BoundingBox.Empty();
                     
                     await default(ToWorld);
-                    float num = FBXRoot.ComputeBoundingBox(false, FBXRoot, null, null).Size.y/1.8f;
+                    float num = FBXRoot.ComputeBoundingBox(true, FBXRoot, null, null).Size.y/1.8f;
 
                     rootnode.LocalScale /= new float3(num, num, num);
                     await default(ToBackground);

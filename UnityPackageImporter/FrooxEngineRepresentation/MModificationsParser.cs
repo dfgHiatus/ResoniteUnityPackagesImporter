@@ -2,6 +2,7 @@
 using HarmonyLib;
 using Leap.Unity.Query;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -34,6 +35,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
             return recursiveSetTypeValue(targetobj, path, mod, field);
         }
 
+
         //m_rotation.w
         private static bool recursiveSetTypeValue(object targetobj, List<string> path, ModsPrefab mod, FieldInfo field)
         {
@@ -64,11 +66,29 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
                         UnityPackageImporter.Msg("array enclosed type is: " + field.FieldType.GetGenericArguments()[0]);
                         UnityPackageImporter.Msg("targetobj type is: " + targetobj.GetType());
                         int arrayindex = int.Parse(current.Replace("data[", "").Replace("]", ""));
-
+                        UnityPackageImporter.Msg("arrayindex is: " + arrayindex.ToString());
                         Type arraytype = field.FieldType.GetGenericArguments()[0];
-                        Array array = field.GetValue(targetobj) as Array;
+                        IList array = field.GetValue(targetobj) as IList; //this should work in most cases.
+                        try
+                        {
+                            UnityPackageImporter.Msg("array: " + array.ToString());
+                        }
+                        catch
+                        {
+                            UnityPackageImporter.Msg("array: null");
+                        }
+
+                        //in case the array has nothing inside of it
+                        try
+                        {
+                            array.RemoveAt(arrayindex);
+                            array.Insert(arrayindex, (mod.value != null) ? Convert.ChangeType(mod.value, arraytype) : mod.objectReference);
+                        }
+                        catch
+                        {
+                            array.Add((mod.value != null) ? Convert.ChangeType(mod.value, arraytype) : mod.objectReference);
+                        }
                         
-                        array.SetValue(Convert.ChangeType(mod.value != null ? mod.value : mod.target, arraytype), arrayindex);
                         return true;
                     }
                     catch (Exception e)

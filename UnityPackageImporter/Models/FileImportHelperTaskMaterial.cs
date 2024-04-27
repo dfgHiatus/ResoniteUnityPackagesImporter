@@ -44,10 +44,10 @@ namespace UnityPackageImporter.Models
         public FileImportHelperTaskMaterial(UnityProjectImporter importer)
         {
             this.importer = importer;
-            UnityPackageImporter.Msg("Importing material with ID: \"" + myID + "\"");
+            UnityPackageImporter.Msg("Importing null material");
             assetsRoot = importer.importTaskAssetRoot;
             matslot = assetsRoot.FindChildOrAdd("MISSING_ERROR" + materialNameIdentifyEndingPrefab);
-            finalMaterial = importer.importTaskAssetRoot.FindChildOrAdd("Missing Material").GetComponentOrAttach<FrooxEngine.PBS_Metallic>();
+            finalMaterial = importer.importTaskAssetRoot.FindChildOrAdd("MISSING_ERROR" + materialNameIdentifyEndingPrefab).GetComponentOrAttach<FrooxEngine.PBS_Metallic>();
             finalMaterial.EmissiveColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
             finalMaterial.AlbedoColor.Value = new Elements.Core.colorX(1, 0, 1, 1, Elements.Core.ColorProfile.Linear);
             ismissing = true;

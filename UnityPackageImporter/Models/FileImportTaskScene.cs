@@ -41,11 +41,11 @@ namespace UnityPackageImporter.Models
 
         public FileImportTaskScene(Slot targetSlot, string assetID, UnityProjectImporter importer, string file)
         {
-            this.targetSlot = targetSlot.AddSlot(Path.GetFileNameWithoutExtension(file)+UnityPackageImporter.UNITY_PREFAB_EXTENSION);
+            this.targetSlot = targetSlot.AddSlot(Path.GetFileNameWithoutExtension(file)+ " - Temp.fbx");
 
             this.file = file;
             this.importer = importer;
-            this.importTaskAssetSlot = importer.importTaskAssetRoot.AddSlot("Assets - "+ Path.GetFileNameWithoutExtension(file) + " - Temp.fbx");
+            this.importTaskAssetSlot = importer.importTaskAssetRoot.AddSlot("Assets - "+ Path.GetFileNameWithoutExtension(file) + ".fbx");
 
 
             this.assetID = assetID;
@@ -152,11 +152,14 @@ namespace UnityPackageImporter.Models
 
                 UnityPackageImporter.Msg("scanning files for ids for mesh renderer "+mesh.Slot.Name);
                 FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer skinnedrenderer = new FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer();
-                string calculatedpath = FindSlotPath(mesh.Slot, this.FinishedFileSlot);
-                SourceObj identifier = this.findRealSource(mesh.Slot.Name, "SkinnedMeshRenderer", "//RootNode/root" + calculatedpath);
+                SourceObj identifier = this.findRealSource(mesh.Slot.Name, "SkinnedMeshRenderer", "//RootNode/root/" + mesh.Slot.Name);
+                identifier.guid = this.assetID;
+                skinnedrenderer.m_CorrespondingSourceObject = identifier;
                 skinnedrenderer.createdMeshRenderer = mesh;
                 skinnedrenderer.m_Mesh = this.findRealSource(mesh.Slot.Name, "Mesh", mesh.Slot.Name); //this allows us to identify this object by mesh, which is useful for prefabs.
+                skinnedrenderer.m_Mesh.guid = this.assetID;
                 UnityPackageImporter.Msg("id for mesh \""+mesh.Slot.Name+"\" is \""+ skinnedrenderer.m_Mesh.ToString() + "\"files for ids for mesh renderer " + mesh.Slot.Name);
+                UnityPackageImporter.Msg("id for skinned mesh renderer \"" + mesh.Slot.Name + "\" is \"" + identifier.ToString()+"\"");
                 this.FILEID_To_Slot_Pairs.Add(identifier, skinnedrenderer);
             }
 
@@ -181,6 +184,7 @@ namespace UnityPackageImporter.Models
             copy.FinishedFileSlot = copy.targetSlot;
             copy.metafile = new MetaDataFile();
             copy.FILEID_To_Slot_Pairs.Clear();
+            copy.assetID = this.assetID;
 
             //cleanup
             Slot Sceneroot = copy.targetSlot.GetChildrenWithTag("PREFABROOTTAG1234").First();
@@ -207,8 +211,11 @@ namespace UnityPackageImporter.Models
 
                 UnityPackageImporter.Msg("giving a skinned mesh renderer materials for file: " + file);
                 FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer skinnedrenderer = new FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer();
-                string calculatedpath = FindSlotPath(mesh.Slot, copy.FinishedFileSlot);
-                SourceObj identifier = copy.findRealSource(mesh.Slot.Name, "SkinnedMeshRenderer", "//RootNode/root" + calculatedpath);
+                SourceObj identifier = copy.findRealSource(mesh.Slot.Name, "SkinnedMeshRenderer", "//RootNode/root/" + mesh.Slot.Name);
+                skinnedrenderer.m_CorrespondingSourceObject = identifier;
+                identifier.guid = copy.assetID;
+                UnityPackageImporter.Msg("path for mesh \""+ mesh.Slot.Name + "\"" + identifier.ToString());
+               
                 skinnedrenderer.m_Mesh = copy.findRealSource(mesh.Slot.Name, "Mesh", mesh.Slot.Name); //this allows us to identify this object by mesh, which is useful for prefabs.
 
                 //UnityPackageImporter.Msg($"{Calculated_fileid} was made from SkinnedMeshRenderer with a slot \"{mesh.Slot.Name}\" with path \"{calculatedpath}\"");
@@ -273,11 +280,13 @@ namespace UnityPackageImporter.Models
                         }
                         await default(ToWorld);
                         skinnedrenderer.materials.Add(materialtask);
+                        skinnedrenderer.m_Materials.Add(new SourceObj(0,string.Empty,0)); //this is to signify 
                         await default(ToBackground);
                     }
                     catch (Exception e)
                     {
                         UnityPackageImporter.Msg("The material " + materialnames[i] + " importing encountered an error!");
+                        skinnedrenderer.m_Materials.Add(new SourceObj(0, string.Empty, 0));
                         throw e;
                     }
                     await default(ToWorld);
@@ -355,7 +364,6 @@ namespace UnityPackageImporter.Models
             FrooxEngineRepresentation.GameObjectTypes.GameObject calclatedobj = new FrooxEngineRepresentation.GameObjectTypes.GameObject();
             calclatedobj.frooxEngineSlot = curnode;
             calclatedobj.m_CorrespondingSourceObject = findRealSource(curnode.Name, "GameObject", "//RootNode/root" + FindSlotPath(curnode, Scene));
-            calclatedobj.instanciated = true;
             calclatedobj.m_Name = curnode.Name;
             if (!FILEID_into_Slot_Pairs.ContainsKey(calclatedobj.m_CorrespondingSourceObject))
             {
@@ -369,9 +377,8 @@ namespace UnityPackageImporter.Models
             
             FrooxEngineRepresentation.GameObjectTypes.Transform calclatedTransformobj = new FrooxEngineRepresentation.GameObjectTypes.Transform();
             calclatedTransformobj.parentHashedGameObj = calclatedobj;
-           
+            
             calclatedTransformobj.m_CorrespondingSourceObject = findRealSource(curnode.Name, "Transform", "//RootNode/root" + FindSlotPath(curnode, Scene));
-            calclatedTransformobj.instanciated = true;
 
             //this is so m_modifications work - @989onan
             calclatedTransformobj.m_LocalPosition = new TransformFloat3(calclatedobj.frooxEngineSlot.LocalPosition.x, calclatedobj.frooxEngineSlot.LocalPosition.y, calclatedobj.frooxEngineSlot.LocalPosition.z);

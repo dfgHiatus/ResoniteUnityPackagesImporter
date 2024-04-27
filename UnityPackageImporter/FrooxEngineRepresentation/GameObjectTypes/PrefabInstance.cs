@@ -101,6 +101,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                                 this.PrefabHashes = importask.FILEID_To_Slot_Pairs;
                                 this.PrefabHashes.Add(importrootsource, ImportRoot);
+                                List<IUnityObject> modifiedObjects = new List<IUnityObject>();
                                 if (m_Modification != null)
                                 {
                                     foreach (ModsPrefab mod in m_Modification.m_Modifications)
@@ -110,9 +111,14 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                                         if (this.PrefabHashes.TryGetValue(mod.target, out IUnityObject targetobj) || importer.existingIUnityObjects.TryGetValue((ulong)(mod.target.fileID + (2 ^ 64)), out targetobj2) || importer.existingIUnityObjects.TryGetValue((ulong)(mod.target.fileID), out targetobj3))
                                         {
                                             targetobj = targetobj ?? targetobj2 ?? targetobj3; //get first available match.
+                                            
                                             if (MModificationsParser.ParseModifcation(targetobj, mod))
                                             {
                                                 UnityPackageImporter.Msg("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene has parsed a modification with the hash \"" + mod.target.ToString() + "\" successfully.");
+                                                if (!modifiedObjects.Contains(targetobj))
+                                                {
+                                                    modifiedObjects.Add(targetobj);
+                                                }
                                             }
                                             else
                                             {
@@ -127,6 +133,53 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 
                                     }
 
+                                }
+
+                                instanciated = true;
+                                //instanciate our objects with our modifications, so in case they're not referenced in the scene, the imported FBX we duplicated to make this inline prefab has the M_Modifications still applied.
+                                //this is important to do, especially for skinned mesh renderers! - @989onan
+                                UnityPackageImporter.Msg("reinitializing objects that were modified.");
+                                foreach (IUnityObject obj in modifiedObjects)
+                                {
+                                    obj.m_PrefabInstance = new Dictionary<string, ulong> { { "fileID", this.id } }; //this is so that it can find it's source, which is ourselves to prevent errors - @989onan
+                                    try
+                                    {
+                                        UnityPackageImporter.Msg("reinitializing object that was modified. the object has an id of: \"" + obj.m_CorrespondingSourceObject.fileID + "\"");
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        try
+                                        {
+                                            UnityPackageImporter.Msg("reinitializing object that was modified. the object has an id of: \"" + obj.m_CorrespondingSourceObject.fileID + "\" has failed to instanciate. This is probably fine.");
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            UnityPackageImporter.Msg("reinitializing object that was modified. the object has an id of: \"NULL\" has failed to instanciate. This is probably fine.");
+                                            UnityPackageImporter.Msg(ex.Message, ex.StackTrace);
+                                        }
+                                        UnityPackageImporter.Msg(e.Message, e.StackTrace);
+                                    }
+                                    try
+                                    {
+                                        
+                                        await default(ToWorld);
+                                        await obj.instanciateAsync(importer);
+                                        await default(ToBackground);
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        try
+                                        {
+                                            UnityPackageImporter.Msg("reinitializing object that was modified. the object has an id of: \"" + obj.m_CorrespondingSourceObject.fileID + "\" has failed to instanciate. This is probably fine.");
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            UnityPackageImporter.Msg("reinitializing object that was modified. the object has an id of: \"NULL\" has failed to instanciate. This is probably fine.");
+                                            UnityPackageImporter.Msg(ex.Message, ex.StackTrace);
+                                        }
+                                        UnityPackageImporter.Msg(e.Message, e.StackTrace);
+                                    }
+                                    
                                 }
                             }
                             else
@@ -145,8 +198,8 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         UnityPackageImporter.Warn("The prefab with a file id of \"" + id.ToString() + "\" in the structure scene is malformed!!! The file source of the prefab doesn't exist in the imported package or file list set.");
                     }
                 }
-                instanciated = true;
 
+                instanciated = true;
             }
         }
 

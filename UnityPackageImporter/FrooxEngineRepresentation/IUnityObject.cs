@@ -27,6 +27,14 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public int type { get; set; }
 
         public SourceObj() { }
+
+        public SourceObj(long fileID, string guid, int type)
+        {
+            this.fileID = fileID;
+            this.guid = guid;
+            this.type = type;
+        }
+
         public override string ToString()
         {
             StringBuilder result = new StringBuilder();
@@ -67,10 +75,10 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
         public SourceObj target { get; set; }
         public string propertyPath { get; set; }
         public string value { get; set; }
-        public Dictionary<string, string> objectReference { get; set; }
+        public SourceObj objectReference { get; set; }
 
         public ModsPrefab() { }
-        public ModsPrefab(SourceObj target, string propertyPath, string value, Dictionary<string, string> objectReference)
+        public ModsPrefab(SourceObj target, string propertyPath, string value, SourceObj objectReference)
         {
             this.target = target;
             this.propertyPath = propertyPath;
@@ -107,10 +115,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
             }
             if (objectReference != null)
             {
-                foreach (var pair in objectReference)
-                {
-                    result.AppendLine("objectReference+Item: (" + pair.Key.ToString() + ", " + pair.Value.ToString());
-                }
+                    result.AppendLine("objectReference: " + objectReference.ToString());
             }
             else
             {
