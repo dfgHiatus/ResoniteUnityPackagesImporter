@@ -16,7 +16,7 @@ namespace UnityPackageImporter
     public class MetaDataFile
     {
         public float GlobalScale = 1;
-        public float LastScaleGlobalScale = 1;
+        private float LastScaleGlobalScale = 1;
 
         public Dictionary<string, SourceObj> externalObjects = new Dictionary<string, SourceObj>();
 
@@ -66,9 +66,6 @@ namespace UnityPackageImporter
         {
             //section identification
             int sectiontype = -1;
-            bool inScaleBlock1 = false;
-            bool inScaleBlock2 = false;
-            bool inScaleBlock3 = false;
 
             //clear previous before we start
             storagebones.Clear();
@@ -105,59 +102,6 @@ namespace UnityPackageImporter
                     continue;
 
                 }
-                else if (line.StartsWith("    skeleton:"))
-                {
-                    UnityPackageImporter.Msg("scaleblock1");
-                    inScaleBlock1 = true;
-                    continue;
-                }
-                if (inScaleBlock1)
-                {
-                    if (line.StartsWith("    - name: "))
-                    {
-                        inScaleBlock1 = false;
-                        inScaleBlock2 = true;
-                        UnityPackageImporter.Msg("scaleblock2");
-                        continue;
-                    }
-                }
-                if (inScaleBlock2)
-                {
-                    if (line.StartsWith("    - name: "))
-                    {
-                        inScaleBlock2 = false;
-                        inScaleBlock3 = true;
-                        UnityPackageImporter.Msg("scaleblock3");
-                        continue;
-
-                    }
-                }
-                if (inScaleBlock3)
-                {
-                    //this gets armature scale.
-                    if (line.StartsWith("      scale:"))
-                    {
-                        UnityPackageImporter.Msg("scaleblock3.5");
-                        try
-                        {
-                            string numberStr = line.Split(':')[2].Split(',')[0].Trim();
-                            UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing to get our scale");
-                            GlobalScale = Math.Abs(float.Parse(numberStr));
-                        }
-                        catch
-                        {
-                            UnityPackageImporter.Msg("scaleblock fail");
-                            UnityPackageImporter.Msg("scaleblock fail");
-                            GlobalScale = 1;
-                        }
-                        inScaleBlock3 = false;
-                        continue;
-                    }
-
-
-
-                    
-                }
                 if (line.StartsWith("    - name:"))
                 {
                     UnityPackageImporter.Msg("Name of scale is: \""+line.Split(':')[1].Trim()+"\"");
@@ -175,10 +119,7 @@ namespace UnityPackageImporter
                     {
                         UnityPackageImporter.Msg("scaleblock fail");
                         UnityPackageImporter.Msg("scaleblock fail");
-
-                        LastScaleGlobalScale = 1;
                     }
-                    inScaleBlock3 = false;
                     continue;
                 }
 
@@ -257,7 +198,7 @@ namespace UnityPackageImporter
                         break;
                 }
             }
-            GlobalScale = LastScaleGlobalScale/GlobalScale;
+            GlobalScale = LastScaleGlobalScale;
         }
 
         //Since Unity names and Froox Engine names are the same, just parse them as enums and return.

@@ -127,7 +127,7 @@ namespace UnityPackageImporter
 
 
         //this is static for a reason to be shared, don't use any fields from this importer that aren't static, and make sure to use locking to be thread safe
-        public static async Task SettupHumanoid(FileImportTaskScene task, Slot FBXRoot)
+        public static async Task SettupHumanoid(FileImportTaskScene task, Slot FBXRoot, bool needsScaleComp)
         {
             UnityPackageImporter.Msg("checking if this FBX is a humanoid");
             Slot taskSlot = FBXRoot;
@@ -181,11 +181,12 @@ namespace UnityPackageImporter
                     await default(ToWorld);
                     foreach (Slot slot in rootnode.GetAllChildren(false).ToArray())
                     {
-                        if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>())
+                        if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>() && needsScaleComp)
                         {
 
                             UnityPackageImporter.Msg("adding bone " + slot.Name +" with scale \""+ task.metafile.GlobalScale + "\"");
-                            slot.LocalPosition /= task.metafile.GlobalScale;
+
+                            slot.LocalPosition *= task.metafile.GlobalScale;
                             rig.Bones.AddUnique(slot);
                         }
 
@@ -231,8 +232,8 @@ namespace UnityPackageImporter
 
                                 await default(ToWorld);
                                 CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
-                                capsuleCollider.Radius.Value = value;
-                                capsuleCollider.Height.Value = magnitude;
+                                capsuleCollider.Radius.Value = value * (needsScaleComp?100:0);
+                                capsuleCollider.Height.Value = magnitude* (needsScaleComp ? 100 : 0);
                             }
                         }
 

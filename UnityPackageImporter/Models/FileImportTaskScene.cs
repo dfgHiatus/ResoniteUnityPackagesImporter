@@ -45,7 +45,7 @@ namespace UnityPackageImporter.Models
 
             this.file = file;
             this.importer = importer;
-            this.importTaskAssetSlot = importer.importTaskAssetRoot.AddSlot("Assets - "+ Path.GetFileNameWithoutExtension(file) + UnityPackageImporter.UNITY_PREFAB_EXTENSION);
+            this.importTaskAssetSlot = importer.importTaskAssetRoot.AddSlot("Assets - "+ Path.GetFileNameWithoutExtension(file) + " - Temp.fbx");
 
 
             this.assetID = assetID;

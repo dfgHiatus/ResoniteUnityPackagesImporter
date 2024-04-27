@@ -21,7 +21,6 @@ namespace UnityPackageImporter.Models
         public Slot CurrentStructureRootSlot { get; set; }
 
         public KeyValuePair<string, string> ID { get; set; }
-
         public Slot allimportsroot { get; set; }
         public UnityProjectImporter unityProjectImporter { get; set; }
 
@@ -175,7 +174,8 @@ namespace UnityPackageImporter.Models
                                             await default(ToWorld);
                                             await UnityProjectImporter.SettupHumanoid(
                                             prefab.importask,
-                                            prefab.ImportRoot.frooxEngineSlot);
+                                            prefab.ImportRoot.frooxEngineSlot,
+                                            false);
                                             await default(ToBackground);
                                         }
                                         else

@@ -128,7 +128,8 @@ namespace UnityPackageImporter.Models
 
                         await UnityProjectImporter.SettupHumanoid(
                             prefab.importask,
-                            prefab.ImportRoot.frooxEngineSlot);
+                            prefab.ImportRoot.frooxEngineSlot,
+                            true);
                     }
                 }
 
@@ -155,7 +156,7 @@ namespace UnityPackageImporter.Models
                         {
                             if (this.unityProjectImporter.SharedImportedFBXScenes.TryGetValue(newobj.m_Mesh.guid, out FileImportTaskScene importedfbx)) {
                                 await default(ToWorld);
-                                await UnityProjectImporter.SettupHumanoid(importedfbx, this.CurrentStructureRootSlot);
+                                await UnityProjectImporter.SettupHumanoid(importedfbx, this.CurrentStructureRootSlot, true);
                                 await default(ToBackground);
                                 break; //all skinned mesh renderers should go to the current prefab if they're under the root. I think that is the root above in the if statement with "RootNode" - @989onan
                             }
