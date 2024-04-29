@@ -12,6 +12,9 @@ using HashDepot;
 using UnityPackageImporter.FrooxEngineRepresentation;
 using System.Linq;
 using UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
+using SkyFrost.Base;
+using static OfficialAssets.Common;
+using Elements.Core;
 
 namespace UnityPackageImporter.Models
 {
@@ -25,13 +28,15 @@ namespace UnityPackageImporter.Models
         public Slot importTaskAssetSlot;
         public bool import_finished = false;
         public MetaDataFile metafile;
+        private ProgressBarInterface import_dialogue;
 
         private Slot targetSlot;
         public Slot FinishedFileSlot = null;
         public bool postprocessfinished = false;
-        public bool running;
+        public bool running = false;
+        private float3 globalPosition;
 
-        public FileImportTaskScene(Slot targetSlot, string assetID, UnityProjectImporter importer, string file)
+        public FileImportTaskScene(Slot targetSlot, string assetID, UnityProjectImporter importer, string file, float3 globalPosition)
         {
             this.targetSlot = targetSlot.AddSlot(Path.GetFileNameWithoutExtension(file)+ " - Temp.fbx");
 
@@ -41,6 +46,7 @@ namespace UnityPackageImporter.Models
 
 
             this.assetID = assetID;
+            this.globalPosition = globalPosition;
         }
 
         private FileImportTaskScene(Slot targetSlot, UnityProjectImporter importer)
@@ -68,6 +74,13 @@ namespace UnityPackageImporter.Models
 
 
             UnityPackageImporter.Msg("Start code block for file import for file " + file);
+
+            await default(ToWorld);
+            Slot Indicator = importer.world.AddSlot("FBX Import Indicator", false);
+            Indicator.GlobalPosition = globalPosition;
+            this.import_dialogue = await Indicator.SpawnEntity<ProgressBarInterface, LegacySegmentCircleProgress>(FavoriteEntity.ProgressBar);
+            await default(ToBackground);
+
             await default(ToWorld);
             AssimpContext assimpContext = new AssimpContext();
             assimpContext.Scale = 1f; 
@@ -78,9 +91,9 @@ namespace UnityPackageImporter.Models
             await default(ToBackground);
 
             this.metafile = new MetaDataFile();
-            
 
-            UnityPackageImporter.Msg("Start assimp file import for file \"" + file+ "\" If your log stops here, then Assimp crashed like a drunk man and took the game with it.\"");
+
+            this.import_dialogue?.UpdateProgress(0f,"","Start assimp file import for file \"" + Path.GetFileName(file)+ "\" If your import stops here, then Assimp crashed like a drunk man and took the game with it.\"");
             FrooxEngineBootstrap.LogStream.Flush();
 
             await default(ToBackground);
@@ -97,19 +110,19 @@ namespace UnityPackageImporter.Models
             {
                 assimpContext.Dispose();
             }
-            
-            UnityPackageImporter.Msg("Preprocessing scene for file " + file);
+
+            this.import_dialogue?.UpdateProgress(0f, "", "Preprocessing scene for file " + Path.GetFileName(file));
             FrooxEngineBootstrap.LogStream.Flush();
             PreprocessScene(scene);
             UnityPackageImporter.Msg("making model import data for file: " + file);
             
             this.data = new ModelImportData(file, scene, this.targetSlot, this.importTaskAssetSlot, ModelImportSettings.PBS(true, true, false, false, false, false), null);
-            UnityPackageImporter.Msg("importing node into froox engine, file: " + file);
+            this.import_dialogue?.UpdateProgress(0f, "", "importing nodes into froox engine, file: " + Path.GetFileName(file));
             FrooxEngineBootstrap.LogStream.Flush();
 
             await Task.WhenAll(ImportNodeAsync(scene.RootNode, targetSlot, data));
 
-            UnityPackageImporter.Msg("retrieving scene root for file: " + file);
+            UnityPackageImporter.Msg("retrieving scene root for file: " + Path.GetFileName(file));
             FrooxEngineBootstrap.LogStream.Flush();
 
             await this.metafile.ScanFile(this, data.TryGetSlot(scene.RootNode));
@@ -133,11 +146,16 @@ namespace UnityPackageImporter.Models
 
             this.FinishedFileSlot = this.targetSlot;
 
+            this.import_dialogue?.UpdateProgress(0f, "", "Hashing slot paths with XXHash64 for file: " + Path.GetFileName(file));
+
             foreach (Slot childofroot in data.TryGetSlot(scene.RootNode).Children)
             {
                 this.FILEID_To_Slot_Pairs.AddRange(RecusiveFileIDSlotFinder(childofroot, data.TryGetSlot(scene.RootNode), this.assetID));//find each child slot of the whole thing
             }
 
+
+
+            this.import_dialogue?.UpdateProgress(0f, "", "Hashing skinned mesh renderers with XXHash64 for file: " + Path.GetFileName(file));
             //this for statement thing is crazy. But it gets the job done - @989onan
             foreach (FrooxEngine.SkinnedMeshRenderer mesh in this.FinishedFileSlot.GetAllChildren().FindAll(slot => slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>() != null).Select(slot => slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>()))
             {
@@ -159,8 +177,7 @@ namespace UnityPackageImporter.Models
 
 
 
-
-            UnityPackageImporter.Msg("Finished task for file " + file);
+            this.import_dialogue?.ProgressDone("Finished task for file " + Path.GetFileName(file));
             this.running = false;
         }
 

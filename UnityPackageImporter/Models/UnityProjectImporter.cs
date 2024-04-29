@@ -68,24 +68,24 @@ namespace UnityPackageImporter
 
             //I feel so smart making the wait all import fbx tasks code. - @989onan
             await default(ToWorld);
-            await Task.WhenAll(fillFBXFiles().Select(task => task.runnerWrapper()).ToArray());
+            IEnumerable<FileImportTaskScene> fbx_tasks = fillFBXFiles();
+            
+            await Task.WhenAll(fbx_tasks.Select(task => task.runnerWrapper()).ToArray());
             await default(ToBackground);
             //now we have a full list of meta files and prefabs regarding this import file list from our prefix (where ever this is even if not a unity package folder) we now begin the hard part
             // *drums* making the files go onto the model! 
             List<IUnityStructureImporter> unityImportTasks = new List<IUnityStructureImporter>();
             int total = this.ListOfPrefabs.Count + this.ListOfUnityScenes.Count;
             int rowSize = MathX.Max(1, MathX.CeilToInt(MathX.Sqrt((float)total)));
-            int counter = 0;
+            
+
+            float3 GlobalPosition = new float3(0,0,0);
+            floatQ GlobalRotation = new floatQ(0, 0, 0, 1);
 
             await default(ToWorld);
-            Slot tempslot = this.world.LocalUserSpace.AddSlot("tempignoreme");
-            tempslot.PersistentSelf = false;
-            tempslot.PositionInFrontOfUser(null, null, 0.7f, this.world.LocalUser,true,true,true);
-            float3 GlobalPosition = tempslot.GlobalPosition;
-            floatQ GlobalRotation = tempslot.GlobalRotation;
-            tempslot.Destroy();
+            this.world.LocalUser.GetPointInFrontOfUser(out GlobalPosition, out GlobalRotation, null, null, 0.7f,true);
             await default(ToBackground);
-
+            int counter = 0;
 
             foreach (KeyValuePair<string,string> Prefab in this.ListOfPrefabs)
             {
@@ -122,23 +122,44 @@ namespace UnityPackageImporter
 
         private IEnumerable<FileImportTaskScene> fillFBXFiles()
         {
-
-            foreach(KeyValuePair<string,string> pair in AssetIDDict)
+            int total = 0;
+            
+            foreach (KeyValuePair<string,string> pair in AssetIDDict)
             {
                 string[] filename = pair.Value.Split('.');
                 if(new string[]{"fbx"}.Contains(filename[filename.Length-1].ToLower())){
 
                     if (!SharedImportedFBXScenes.ContainsKey(pair.key))
                     {
-                        UnityPackageImporter.Debug("now importing \"" + pair.Value + "\" for later use by prefabs and scenes!");
-                        FileImportTaskScene importtask = new FileImportTaskScene(this.root, pair.key, this, this.AssetIDDict[pair.key]);
-                        this.SharedImportedFBXScenes.Add(pair.key, importtask);
-                        yield return importtask;
+                        total++;
+                        
                     }
                 }
 
                 
             }
+            int rowSize = MathX.Max(1, MathX.CeilToInt(MathX.Sqrt((float)total)));
+            int counter = 0;
+            this.world.LocalUser.GetPointInFrontOfUser(out float3 GlobalPosition, out floatQ GlobalRotation, null, null, 0.7f, true);
+            foreach (KeyValuePair<string, string> pair in AssetIDDict)
+            {
+                string[] filename = pair.Value.Split('.');
+                if (new string[] { "fbx" }.Contains(filename[filename.Length - 1].ToLower()))
+                {
+
+                    if (!SharedImportedFBXScenes.ContainsKey(pair.key))
+                    {
+                        UnityPackageImporter.Debug("now importing \"" + pair.Value + "\" for later use by prefabs and scenes!");
+                        FileImportTaskScene importtask = new FileImportTaskScene(this.root, pair.key, this, this.AssetIDDict[pair.key], (GlobalRotation * UniversalImporter.GridOffset(ref counter, rowSize)) + GlobalPosition);
+                        this.SharedImportedFBXScenes.Add(pair.key, importtask);
+                        yield return importtask;
+
+                    }
+                }
+
+
+            }
+            
             yield break;
             
         }
