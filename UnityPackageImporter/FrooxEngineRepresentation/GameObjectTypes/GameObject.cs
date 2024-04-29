@@ -30,7 +30,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 await default(ToWorld);
                 if(m_CorrespondingSourceObject.guid == null && frooxEngineSlot == null)
                 {
-                    frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
+                    frooxEngineSlot = importer.unityProjectImporter.world.AddSlot(this.m_Name);
                     frooxEngineSlot.SetParent(importer.CurrentStructureRootSlot, true); //let user managers not freak out that we're doing stuff in root.
                     frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
                 }

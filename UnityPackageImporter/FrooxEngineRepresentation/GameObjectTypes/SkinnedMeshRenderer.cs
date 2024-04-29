@@ -1,4 +1,5 @@
 ﻿using Assimp;
+using Elements.Core;
 using FrooxEngine;
 using System;
 using System.Collections.Generic;
@@ -183,6 +184,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     
                     //FoundMesh.Mesh.ReferenceID = (skinnedMeshRenderer as FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer).createdMeshRenderer.Mesh.ReferenceID;
                     await default(ToWorld);
+                    importer.progressIndicator?.UpdateProgress(0f, "", "now loading a skinned mesh renderer named \""+FoundMesh.Slot.Name+"\" ");
                     while (!FoundMesh.Mesh.IsAssetAvailable)
                     {
                         await default(NextUpdate);
@@ -297,6 +299,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                     SourceObj material = m_Materials[i];
                     try
                     {
+                        
                         if (material.guid != string.Empty)
                         {
                             if (importer.unityProjectImporter.AssetIDDict.ContainsKey(material.guid))
@@ -359,6 +362,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                 {
                     try
                     {
+                        importer.progressIndicator?.UpdateProgress(0f, "", "now loading material " + counter.ToString() + " on a skinned mesh renderer named \"" + FoundMesh.Slot.Name + "\" ");
                         await default(ToWorld);
                         UnityPackageImporter.Msg("assigning material slot for: \"" + FoundMesh.Slot.Name + "\"");
                         FoundMesh.Materials.Add().Target = await materialtask.runImportFileMaterialsAsync();

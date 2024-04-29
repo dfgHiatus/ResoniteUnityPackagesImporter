@@ -10,16 +10,8 @@ using static FrooxEngine.ModelImporter;
 using MonoMod.Utils;
 using HashDepot;
 using UnityPackageImporter.FrooxEngineRepresentation;
-using YamlDotNet.Serialization.NamingConventions;
-using YamlDotNet.Serialization;
-using YamlDotNet.Core;
-using SkyFrost.Base;
-using static UMP.Wrappers.WrapperStandalone;
-using Elements.Assets;
-using System.Reflection;
 using System.Linq;
 using UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
-using uTouchInjection;
 
 namespace UnityPackageImporter.Models
 {

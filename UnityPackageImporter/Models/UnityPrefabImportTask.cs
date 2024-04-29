@@ -1,4 +1,6 @@
-﻿using FrooxEngine;
+﻿using Elements.Core;
+using FrooxEngine;
+using SkyFrost.Base;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,14 +21,18 @@ namespace UnityPackageImporter.Models
         public Slot allimportsroot { get; set; }
         public KeyValuePair<string, string> ID { get; set; }
 
+        private float3 GlobalIndicatorPosition;
+
+        public ProgressBarInterface progressIndicator { get; set; }
 
         public UnityProjectImporter unityProjectImporter { get; set; }
 
-        public UnityPrefabImportTask(Slot root, KeyValuePair<string, string> ID, UnityProjectImporter unityProjectImporter)
+        public UnityPrefabImportTask(float3 globalPosition, Slot root, KeyValuePair<string, string> ID, UnityProjectImporter unityProjectImporter)
         {
             this.ID = ID;
             this.unityProjectImporter = unityProjectImporter;
             this.allimportsroot = root;
+            this.GlobalIndicatorPosition = globalPosition;
         }
         public async Task StartImport()
         {
@@ -34,10 +40,46 @@ namespace UnityPackageImporter.Models
             try {
                 existingIUnityObjects = new Dictionary<ulong, IUnityObject>();
                 await default(ToWorld);
-                this.CurrentStructureRootSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(ID.Value));
+                this.CurrentStructureRootSlot = unityProjectImporter.world.AddSlot(Path.GetFileName(ID.Value));
                 this.CurrentStructureRootSlot.SetParent(this.allimportsroot, false);
-                this.CurrentStructureRootSlot.PositionInFrontOfUser(null, null, 0.7f, null, false, false, true);
+                this.CurrentStructureRootSlot.GlobalPosition = this.GlobalIndicatorPosition;
+                Slot indicator = this.unityProjectImporter.root.AddSlot("Unity Prefab Import Indicator");
+                indicator.GlobalPosition = this.GlobalIndicatorPosition;
+                indicator.PersistentSelf = false;
+                this.progressIndicator = await indicator.SpawnEntity<ProgressBarInterface, LegacySegmentCircleProgress>(FavoriteEntity.ProgressBar);
+                progressIndicator?.Initialize(false);
                 await default(ToBackground);
+
+
+                progressIndicator?.UpdateProgress(0f, "", "now loading unity YAML objects for Prefab.");
+                //we first have to remove "stripped" since those cause yaml parsing errors
+                string[] initialstream = File.ReadAllLines(ID.Value);
+                string[] newcontent = new string[initialstream.Length];
+                for (int i = 0; i < initialstream.Length; i++)
+                {
+                    string line = initialstream[i];
+                    newcontent[i] = line;
+                    if (line.StartsWith("--- !u!"))
+                    {
+                        newcontent[i] = newcontent[i].Replace(" stripped", "");
+
+                    }
+                }
+                File.WriteAllLines(ID.Value, newcontent);
+
+
+                int totalProgress = 0;
+
+                foreach (KeyValuePair<ulong, IUnityObject> obj in existingIUnityObjects)
+                {
+                    Type type = obj.Value.GetType();
+                    int progressitem = 4;
+
+                    UnityEngineObjectWrapper.addedProgress.TryGetValue(type, out progressitem);
+                    totalProgress += progressitem;
+
+                }
+
 
 
 
@@ -48,10 +90,19 @@ namespace UnityPackageImporter.Models
 
                 UnityPackageImporter.Msg("Loaded " + existingIUnityObjects.Count.ToString() + " Unity objects/components/meshes for prefab!");
 
-
+                await default(ToWorld);
+                int counter = 0;
+                int progress = 0;
                 //instanciate our objects to generate our prefab entirely, using the ids we assigned ealier to identify our prefab elements in our list.
-                foreach (var obj in existingIUnityObjects)
+                foreach (KeyValuePair<ulong,IUnityObject> obj in existingIUnityObjects)
                 {
+                    counter++;
+                    Type type = obj.Value.GetType();
+                    int progressitem = 4;
+
+                    UnityEngineObjectWrapper.addedProgress.TryGetValue(type, out progressitem);
+                    progress += progressitem;
+                    progressIndicator?.UpdateProgress(MathX.Clamp01((float)progress / (float)totalProgress), "", "now loading " + this.existingIUnityObjects.Count.ToString() + "/" + counter.ToString() + " objects for Prefab");
                     UnityPackageImporter.Msg("loading object for prefab \"" + ID.Value + "\" with an id of \"" + obj.Value.id.ToString() + "\"");
                     try
                     {
@@ -77,6 +128,8 @@ namespace UnityPackageImporter.Models
 
 
                 }
+
+                progressIndicator?.UpdateProgress(0f, "", "instanciated " + existingIUnityObjects.Count.ToString() + " Unity objects/components/meshes for prefab! Now cleaning up.");
 
                 List<IUnityObject> movethese = new List<IUnityObject>();
 
@@ -133,7 +186,7 @@ namespace UnityPackageImporter.Models
                     }
                 }
 
-                UnityPackageImporter.Msg("Setting up IK Root");
+                
                 foreach (var obj in existingIUnityObjects)
                 {
                     if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer))
@@ -146,6 +199,8 @@ namespace UnityPackageImporter.Models
                     }
                 }
 
+                progressIndicator?.UpdateProgress(0f, "", "setting up IK for prefab.");
+                
                 foreach (var obj in existingIUnityObjects)
                 {
                     if (obj.Value.GetType() == typeof(FrooxEngineRepresentation.GameObjectTypes.SkinnedMeshRenderer))
@@ -169,6 +224,10 @@ namespace UnityPackageImporter.Models
 
                     }
                 }
+
+                progressIndicator?.ProgressDone("Finished Prefab!");
+                progressIndicator?.UpdateProgress(1f, "", "Finished!");
+
             }
             catch (Exception e)
             {
@@ -176,6 +235,7 @@ namespace UnityPackageImporter.Models
                 UnityPackageImporter.Warn(e.Message + e.StackTrace);
                 UnityPackageImporter.Msg(debugPrefab.ToString());
                 FrooxEngineBootstrap.LogStream.Flush();
+                progressIndicator?.ProgressFail("Failed to decode the Unity Prefab due to an error!");
                 throw e;
             }
 

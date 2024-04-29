@@ -55,6 +55,25 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 {
     public class UnityEngineObjectWrapper
     {
+
+
+        /// <summary>
+        /// Use game object as a reference point.
+        /// this is how long the objects are generally gonna take. These values are realtive and don't represent time units.
+        /// instead, these get added one by one depending on the objects being imported into a total number.
+        /// </summary>
+        public static Dictionary<Type, int> addedProgress = new Dictionary<Type, int>
+        {
+            {typeof(Component), 0},
+            {typeof(GameObject), 1},
+            {typeof(Transform), 2},
+            {typeof(NullType), 0},
+            {typeof(SkinnedMeshRenderer), 10},
+            {typeof(PrefabInstance), 20},
+            {typeof(RotationConstraint), 2},
+            {typeof(MeshCollider), 10},
+            {typeof(MonoBehaviour), 30}
+        };
         public Component Component;
         public GameObject GameObject;
         public Transform Transform;

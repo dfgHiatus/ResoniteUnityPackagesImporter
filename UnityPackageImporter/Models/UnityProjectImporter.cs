@@ -4,12 +4,14 @@ using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.FinalIK;
 using HarmonyLib;
+using SkyFrost.Base;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using UnityPackageImporter.FrooxEngineRepresentation;
@@ -37,11 +39,14 @@ namespace UnityPackageImporter
 
         public List<string> files;
         public Slot root;
-        
+
+        public World world;
+
+
         public ReadOnlyDictionary<string, string> ListOfPrefabs;
 
 
-        public UnityProjectImporter(IEnumerable<string> files, Dictionary<string, string> AssetIDDict, Dictionary<string, string> ListOfPrefabs, Dictionary<string, string> ListOfMetas, Dictionary<string, string> ListOfUnityScenes, Slot root, Slot assetsRoot)
+        public UnityProjectImporter(IEnumerable<string> files, Dictionary<string, string> AssetIDDict, Dictionary<string, string> ListOfPrefabs, Dictionary<string, string> ListOfMetas, Dictionary<string, string> ListOfUnityScenes, Slot root, Slot assetsRoot, World world)
         {
             this.files = files as List<string>;
             this.importTaskAssetRoot = assetsRoot;
@@ -52,6 +57,7 @@ namespace UnityPackageImporter
             this.ListOfMetas = new ReadOnlyDictionary<string, string>(ListOfMetas);
             this.AssetIDDict = new ReadOnlyDictionary<string, string>(AssetIDDict);
             this.ListOfUnityScenes = new ReadOnlyDictionary<string, string>(ListOfUnityScenes);
+            this.world = world;
         }
 
         public async Task startImports()
@@ -66,22 +72,34 @@ namespace UnityPackageImporter
             await default(ToBackground);
             //now we have a full list of meta files and prefabs regarding this import file list from our prefix (where ever this is even if not a unity package folder) we now begin the hard part
             // *drums* making the files go onto the model! 
-
             List<IUnityStructureImporter> unityImportTasks = new List<IUnityStructureImporter>();
+            int total = this.ListOfPrefabs.Count + this.ListOfUnityScenes.Count;
+            int rowSize = MathX.Max(1, MathX.CeilToInt(MathX.Sqrt((float)total)));
+            int counter = 0;
+
+            await default(ToWorld);
+            Slot tempslot = this.world.LocalUserSpace.AddSlot("tempignoreme");
+            tempslot.PersistentSelf = false;
+            tempslot.PositionInFrontOfUser(null, null, 0.7f, this.world.LocalUser,true,true,true);
+            float3 GlobalPosition = tempslot.GlobalPosition;
+            floatQ GlobalRotation = tempslot.GlobalRotation;
+            tempslot.Destroy();
+            await default(ToBackground);
+
 
             foreach (KeyValuePair<string,string> Prefab in this.ListOfPrefabs)
             {
-
                 UnityPackageImporter.Msg("create prefab import task obj for prefab \"" + Prefab.Value + "\"");
                 await default(ToWorld);
-                unityImportTasks.Add(new UnityPrefabImportTask(root, Prefab, this));
+                unityImportTasks.Add(new UnityPrefabImportTask((GlobalRotation * UniversalImporter.GridOffset(ref counter, rowSize)) + GlobalPosition, root, Prefab, this));
                 await default(ToBackground);
             }
-            foreach(var Scene in this.ListOfUnityScenes)
+            foreach(KeyValuePair<string, string> Scene in this.ListOfUnityScenes)
             {
+                
                 UnityPackageImporter.Msg("create scene import task obj for scene \""+ Scene.Value+ "\"");
                 await default(ToWorld);
-                unityImportTasks.Add(new UnitySceneImportTask(root, Scene, this));
+                unityImportTasks.Add(new UnitySceneImportTask((GlobalRotation * UniversalImporter.GridOffset(ref counter, rowSize)) + GlobalPosition, root, Scene, this));
                 await default(ToBackground);
             }
             await default(ToWorld);
@@ -126,6 +144,8 @@ namespace UnityPackageImporter
         }
 
 
+        
+
         //this is static for a reason to be shared, don't use any fields from this importer that aren't static, and make sure to use locking to be thread safe
         public static async Task SettupHumanoid(FileImportTaskScene task, Slot FBXRoot, bool needsScaleComp)
         {
@@ -147,6 +167,7 @@ namespace UnityPackageImporter
                 await default(ToWorld);
 
                 Slot movecenter = taskSlot.Parent.AddSlot(taskSlot.Name + " - Move Me With This!");
+                movecenter.TRS = taskSlot.TRS;
                 taskSlot.SetParent(movecenter);
 
                 Rig rig = taskSlot.GetComponent<Rig>();
@@ -181,12 +202,12 @@ namespace UnityPackageImporter
                     await default(ToWorld);
                     foreach (Slot slot in rootnode.GetAllChildren(false).ToArray())
                     {
-                        if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>() && needsScaleComp)
+                        if (null == slot.GetComponent<FrooxEngine.SkinnedMeshRenderer>())
                         {
 
                             UnityPackageImporter.Msg("adding bone " + slot.Name +" with scale \""+ task.metafile.GlobalScale + "\"");
 
-                            slot.LocalPosition *= task.metafile.GlobalScale;
+                            slot.LocalPosition *= needsScaleComp?task.metafile.GlobalScale:1;
                             rig.Bones.AddUnique(slot);
                         }
 
@@ -232,8 +253,8 @@ namespace UnityPackageImporter
 
                                 await default(ToWorld);
                                 CapsuleCollider capsuleCollider = slotcollider.AttachComponent<CapsuleCollider>();
-                                capsuleCollider.Radius.Value = value * (needsScaleComp?100:0);
-                                capsuleCollider.Height.Value = magnitude* (needsScaleComp ? 100 : 0);
+                                capsuleCollider.Radius.Value = value;
+                                capsuleCollider.Height.Value = magnitude;
                             }
                         }
 

@@ -1,7 +1,10 @@
-﻿using FrooxEngine;
+﻿using Elements.Core;
+using FrooxEngine;
+using SkyFrost.Base;
 using System;
 using System.CodeDom;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -22,13 +25,18 @@ namespace UnityPackageImporter.Models
 
         public KeyValuePair<string, string> ID { get; set; }
         public Slot allimportsroot { get; set; }
+
+        private float3 GlobalIndicatorPosition;
+        public ProgressBarInterface progressIndicator { get; set; }
+
         public UnityProjectImporter unityProjectImporter { get; set; }
 
-        public UnitySceneImportTask(Slot allimportsroot, KeyValuePair<string, string> ID, UnityProjectImporter unityProjectImporter)
+        public UnitySceneImportTask(float3 globalPosition, Slot root, KeyValuePair<string, string> ID, UnityProjectImporter unityProjectImporter)
         {
             this.ID = ID;
             this.unityProjectImporter = unityProjectImporter;
-            this.allimportsroot = allimportsroot;
+            this.allimportsroot = root;
+            this.GlobalIndicatorPosition = globalPosition;
         }
 
         
@@ -41,10 +49,16 @@ namespace UnityPackageImporter.Models
                 existingIUnityObjects = new Dictionary<ulong, IUnityObject>();
                 await default(ToWorld);
 
-                this.CurrentStructureRootSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(Path.GetFileName(ID.Value));
-                UnityPackageImporter.Msg("Current slot for scene import is: ");
-                UnityPackageImporter.Msg(CurrentStructureRootSlot.ToString());
+                this.CurrentStructureRootSlot = unityProjectImporter.world.AddSlot(Path.GetFileName(ID.Value));
                 this.CurrentStructureRootSlot.SetParent(this.allimportsroot, false);
+                this.CurrentStructureRootSlot.GlobalPosition = new float3(0, 0, 0);
+                Slot indicator = this.unityProjectImporter.root.AddSlot("Unity Scene Import Indicator");
+                indicator.GlobalPosition = GlobalIndicatorPosition;
+                indicator.PersistentSelf = false;
+                this.progressIndicator = await indicator.SpawnEntity<ProgressBarInterface, LegacySegmentCircleProgress>(FavoriteEntity.ProgressBar);
+                progressIndicator?.Initialize(false);
+
+                progressIndicator?.UpdateProgress(0f, "", "now loading unity YAML objects for Scene.");
                 await default(ToBackground);
 
 
@@ -66,12 +80,32 @@ namespace UnityPackageImporter.Models
 
                 this.existingIUnityObjects = YamlToFrooxEngine.parseYaml(this.ID.Value);
 
-                UnityPackageImporter.Msg("Loaded " + existingIUnityObjects.Count.ToString() + " Unity prefabs/transforms/special_components for scene!");
+                int totalProgress = 0;
+
+                foreach (KeyValuePair<ulong, IUnityObject> obj in existingIUnityObjects)
+                {
+                    Type type = obj.Value.GetType();
+                    int progressitem = 4;
+
+                    UnityEngineObjectWrapper.addedProgress.TryGetValue(type, out progressitem);
+                    totalProgress += progressitem;
+
+                }
+
 
                 //instanciate everything else.
+                int counter = 0;
+                int progress = 0;
                 await default(ToWorld);
                 foreach (var obj in existingIUnityObjects)
                 {
+                    counter++;
+                    Type type = obj.Value.GetType();
+                    int progressitem = 4;
+
+                    UnityEngineObjectWrapper.addedProgress.TryGetValue(type, out progressitem);
+                    progress += progressitem;
+                    progressIndicator?.UpdateProgress( MathX.Clamp01((float)progress / (float)totalProgress), "", "now loading " + this.existingIUnityObjects.Count.ToString() + "/" + counter.ToString() + " objects for scene");
                     UnityPackageImporter.Msg("loading object for scene \"" + ID.Value + "\" with an id of \"" + obj.Value.id.ToString() + "\"");
                     try
                     {
@@ -154,6 +188,8 @@ namespace UnityPackageImporter.Models
                     }
                 }
 
+
+                progressIndicator?.UpdateProgress(0f, "", "setting up IK for objects in scene");
                 UnityPackageImporter.Msg("Setting up IK for Prefabs in scene \"" + ID.Value + "\"");
                 await default(ToWorld);
                 foreach (var obj in existingIUnityObjects)
@@ -193,6 +229,14 @@ namespace UnityPackageImporter.Models
                     }
                 }
                 await default(ToBackground);
+
+                progressIndicator?.ProgressDone("Finished Scene!");
+                progressIndicator?.UpdateProgress(1f,"","Finished!");
+
+
+                UnityPackageImporter.Msg("Yaml generation done");
+
+                UnityPackageImporter.Msg("Scene finished!");
             }
             catch (Exception e)
             {
@@ -200,13 +244,11 @@ namespace UnityPackageImporter.Models
                 UnityPackageImporter.Warn(e.Message + e.StackTrace);
                 UnityPackageImporter.Msg(debugScene.ToString());
                 FrooxEngineBootstrap.LogStream.Flush();
+                progressIndicator?.ProgressFail("Failed to decode the Unity Scene due to an error!");
                 throw e;
                 
             }
-            
-            UnityPackageImporter.Msg("Yaml generation done");
-            
-            UnityPackageImporter.Msg("Scene finished!");
+
         }
 
     }

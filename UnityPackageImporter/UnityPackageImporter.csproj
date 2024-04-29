@@ -109,6 +109,7 @@
     <Compile Include="TarTarSource.cs" />
     <Compile Include="UnityPackageExtractor.cs" />
     <Compile Include="UnityPackageImporter.cs" />
+    <Compile Include="UnityPackageImporterDialogue.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="XXHash.cs" />
   </ItemGroup>

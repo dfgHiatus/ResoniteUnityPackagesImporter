@@ -2,10 +2,12 @@
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
+using Leap.Unity;
 using ResoniteModLoader;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Policy;
 using System.Threading.Tasks;
 using UnityPackageImporter.Extractor;
 
@@ -22,6 +24,7 @@ public class UnityPackageImporter : ResoniteMod
     internal const string UNITY_PREFAB_EXTENSION = ".prefab";
     internal const string UNITY_SCENE_EXTENSION = ".unity";
     internal const string UNITY_META_EXTENSION = ".meta";
+    internal static readonly HashSet<string> UNITY_PACKAGE_EXTENSIONS = new() { ".unitypackage" };
 
     internal static ModConfiguration Config;
     internal static string cachePath = Path.Combine(
@@ -68,6 +71,7 @@ public class UnityPackageImporter : ResoniteMod
         new Harmony("net.dfgHiatus.UnityPackageImporter").PatchAll();
         Config = GetConfiguration();
         Directory.CreateDirectory(cachePath);
+        Engine.Current.RunPostInit(AssetPatch); //patch unity packages in
     }
 
     public static string[] DecomposeUnityPackage(string file)
@@ -111,6 +115,20 @@ public class UnityPackageImporter : ResoniteMod
         return dirsToImport.ToArray();
     }
 
+    //patch unity packages into file metadata stuff so we can use them
+    private static void AssetPatch()
+    {
+        var aExt = Traverse.Create(typeof(AssetHelper)).Field<Dictionary<AssetClass, List<string>>>("associatedExtensions");
+        foreach(string hash in UNITY_PACKAGE_EXTENSIONS)
+        {
+            aExt.Value[AssetClass.Special].Add(hash);
+        }
+        
+    }
+
+
+
+
     /* 
     Maybe the importer could be made smarter to detect a Unity project with just the prefab's PC path as reference? Then use all of those files to find the dependencies I guess?
     Though, this is fine for now, since the package might have all the dependencies (sometimes)
@@ -123,7 +141,7 @@ public class UnityPackageImporter : ResoniteMod
         
 
 
-        public static bool Prefix(ref IEnumerable<string> files)
+        public static bool Prefix(ref IEnumerable<string> files, ref World world)
         {
 
             List<string> hasUnityPackage = new List<string>();
@@ -132,10 +150,10 @@ public class UnityPackageImporter : ResoniteMod
 
 
 
-            Msg("Start import of unity packages.");
-            
 
 
+
+            Msg("Run UnityPackageImporter patch.");
             foreach (var file in files)
             {
                 if (Path.GetExtension(file).ToLower() == UNITY_PACKAGE_EXTENSION)
@@ -143,12 +161,15 @@ public class UnityPackageImporter : ResoniteMod
                 else
                     notUnityPackage.Add(file);
             }
-            if(hasUnityPackage.Count > 0)
+
+            World curworld = world.RootSlot.World;
+            if (hasUnityPackage.Count > 0)
             {
-                var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package Import");
+                Msg("Start import of unity packages.");
+                var slot = world.AddSlot("Unity Package Import");
                 slot.GlobalPosition = new float3(0, 0, 0); //we want scenes to position themselves at 0,0,0. There is an edge case where the thing this is parented under would be moving, but that's just a skill issue on the user's part. - @989onan
-                slot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root. - @989onan
-                slot.StartGlobalTask(async () => await scanfiles(hasUnityPackage, slot));
+                slot.SetParent(world.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root. - @989onan
+                slot.StartGlobalTask(async () => await scanfiles(hasUnityPackage, slot, curworld));
                 
             }
 
@@ -157,19 +178,13 @@ public class UnityPackageImporter : ResoniteMod
             //idk if we really need this if the stuff above is going to eventually just import prefabs and textures already set up... - @989onan
 
 
-            
-            if (hasUnityPackage.Count <= 0) return true;
-
-            var slotbatch = Engine.Current.WorldManager.FocusedWorld.AddSlot("Batch Import", false);
-            slotbatch.PositionInFrontOfUser(null, null, 0.7f, null, false, false, true);
-            slotbatch.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
-            BatchFolderImporter.BatchImport(slotbatch, notUnityPackage, Config.GetValue(importAsRawFiles));
+            files = notUnityPackage;
             
 
-            return false;
+            return true;
         }
 
-        private static async Task scanfiles(List<string> hasUnityPackage, Slot slot)
+        private static async Task scanfiles(List<string> hasUnityPackage, Slot slot, World world)
         {
 
 
@@ -182,7 +197,7 @@ public class UnityPackageImporter : ResoniteMod
 
 
                 Msg("CALLING FindPrefabsAndMetas");
-                List<string> notprefabsandmetas = (await FindPrefabsAndMetas(scanthesefiles, slot, imports)).ToList();
+                List<string> notprefabsandmetas = (await FindPrefabsAndMetas(scanthesefiles, slot, imports, world)).ToList();
                 if (Config.GetValue(dumpPackageContents))
                 {
                     if (Config.GetValue(ImportPrefab))
@@ -206,7 +221,7 @@ public class UnityPackageImporter : ResoniteMod
             Msg("FINISHED ALL IMPORTS AND DONE WITH ALL TASKS!!");
         }
 
-        private static async Task<IEnumerable<string>> FindPrefabsAndMetas(IEnumerable<string> files, Slot importSlotContainment, List<Task> imports)
+        private static async Task<IEnumerable<string>> FindPrefabsAndMetas(IEnumerable<string> files, Slot importSlotContainment, List<Task> imports, World world)
         {
             /*DebugMSG*/Msg("Start Finding Prefabs and Metas");
             //remove the meta files from the rest of the code later on in the return statements, since we don't want to let the importer bring in fifty bajillion meta files...
@@ -257,7 +272,7 @@ public class UnityPackageImporter : ResoniteMod
             if (Config.GetValue(ImportPrefab))
             {
                 await default(ToWorld);
-                imports.Add(new UnityProjectImporter(files, AssetIDDict, ListOfPrefabs, ListOfMetas, ListOfUnityScenes, importSlotContainment, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets")).startImports());
+                imports.Add(new UnityProjectImporter(files, AssetIDDict, ListOfPrefabs, ListOfMetas, ListOfUnityScenes, importSlotContainment, world.AssetsSlot.AddSlot("UnityPackageImport - Assets"), world).startImports());
                 await default(ToBackground);
             }
             
