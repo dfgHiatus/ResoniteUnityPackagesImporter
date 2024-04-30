@@ -15,8 +15,8 @@ namespace UnityPackageImporter
 {
     public class MetaDataFile
     {
-        public BipedRig modelBoneHumanoidAssignments;
-        public float GlobalScale = -1;
+        public float GlobalScale = 1;
+        private float LastScaleGlobalScale = 1;
 
         public Dictionary<string, SourceObj> externalObjects = new Dictionary<string, SourceObj>();
 
@@ -32,43 +32,30 @@ namespace UnityPackageImporter
 
         //this creates our biped rig under the slot we specify. in this case, it is the root.
         //this MetaDataFile object class gives us access to the biped rig component directly if desired
-        public async Task GenerateComponents(Slot ModelRootSlot) {
+        public async Task GenerateComponents(BipedRig rig) {
 
-            if(this.modelBoneHumanoidAssignments == null)
+            UnityPackageImporter.Msg("Humanoid bone description being instanciated is: " + (rig != null));
+            await default(ToBackground);
+
+
+
+
+            //so that we add the bone without parsing it's children
+            //if we use """AssignBones(Rig.BoneNode root, bool ignoreDuplicates)""" that will cause errors.
+            foreach (var BoneNode in storagebones)
             {
-
-                await default(ToWorld);
-                this.modelBoneHumanoidAssignments = ModelRootSlot.AttachComponent<BipedRig>();
-                UnityPackageImporter.Msg("Humanoid bone description being instanciated is: " + (modelBoneHumanoidAssignments != null));
-                await default(ToBackground);
-
-
-
-
-                //so that we add the bone without parsing it's children
-                //if we use """AssignBones(Rig.BoneNode root, bool ignoreDuplicates)""" that will cause errors.
-                foreach (var BoneNode in storagebones)
+                if (BoneNode.Value != null)
                 {
-                    if (BoneNode.Value != null)
-                    {
-                        UnityPackageImporter.Msg("assigning bone: " + BoneNode.Value.Name);
-                        await default(ToWorld);
-                        this.modelBoneHumanoidAssignments.Bones.Add(BoneNode.Key, BoneNode.Value);
-                        await default(ToBackground);
-                    }
-                    else
-                    {
-                        UnityPackageImporter.Msg("assigning bone was null! Idk what it was...");
-                    }
-                    
+                    UnityPackageImporter.Msg("assigning bone: " + BoneNode.Value.Name);
+                    await default(ToWorld);
+                    rig.Bones.Add(BoneNode.Key, BoneNode.Value);
+                    await default(ToBackground);
                 }
-
-                await default(ToWorld);
-                UnityPackageImporter.Msg("detecting forward flipped of model biped.");
-                //this is here to initialize our Rig's biped forward at the end of the import for VRIK later on.
-                modelBoneHumanoidAssignments.GuessForwardFlipped();
-                modelBoneHumanoidAssignments.DetectHandRigs();
-                await default(ToBackground);
+                else
+                {
+                    UnityPackageImporter.Msg("assigning bone was null! Idk what it was...");
+                }
+                    
             }
         }
 
@@ -115,17 +102,23 @@ namespace UnityPackageImporter
                     continue;
 
                 }
-                if (line.StartsWith("    globalScale:"))
+                if (line.StartsWith("    - name:"))
                 {
+                    UnityPackageImporter.Msg("Name of scale is: \""+line.Split(':')[1].Trim()+"\"");
+                }
+                if (line.StartsWith("      scale:"))
+                {
+                    UnityPackageImporter.Msg("scaleblock3.5");
                     try
                     {
-                        string numberStr = line.Split(':')[1].Trim();
-                        UnityPackageImporter.Msg("found scale \"" + numberStr + "\", parsing to get our scale");
-                        GlobalScale = float.Parse(numberStr);
+                        string numberStr = line.Split(':')[2].Split(',')[0].Trim();
+                        UnityPackageImporter.Msg("found scale last \"" + numberStr + "\", parsing to get our scale");
+                        LastScaleGlobalScale = Math.Abs(float.Parse(numberStr));
                     }
                     catch
                     {
-                        GlobalScale = 1;
+                        UnityPackageImporter.Msg("scaleblock fail");
+                        UnityPackageImporter.Msg("scaleblock fail");
                     }
                     continue;
                 }
@@ -205,6 +198,7 @@ namespace UnityPackageImporter
                         break;
                 }
             }
+            GlobalScale = LastScaleGlobalScale;
         }
 
         //Since Unity names and Froox Engine names are the same, just parse them as enums and return.

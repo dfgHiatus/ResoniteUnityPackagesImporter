@@ -42,6 +42,7 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
 
     class UnityObjectMapping
     {
+
         public static Dictionary<int, string> IdToTypeName = new Dictionary<int, string>()
         {
             { 1,  "GameObject" },
@@ -280,5 +281,21 @@ namespace UnityPackageImporter.FrooxEngineRepresentation
             { 1113,  "LightmapParameters" },
             { 1120,  "LightmapSnapshot"}
         };
+
+
+        public static Dictionary<string, int> type_name_To_ID = type_name_To_ID_constructor();
+
+        private static Dictionary<string, int> type_name_To_ID_constructor()
+        {
+            Dictionary<string, int> type_name_To_ID = new Dictionary<string, int>();
+            foreach(KeyValuePair<int,string> pair in IdToTypeName)
+            {
+                type_name_To_ID.Add(pair.Value, pair.Key);
+            }
+
+            return type_name_To_ID;
+        }
+
+        
     }
 }

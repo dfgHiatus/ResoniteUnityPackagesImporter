@@ -1,4 +1,5 @@
-﻿using FrooxEngine;
+﻿using Elements.Core;
+using FrooxEngine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,6 +16,7 @@ namespace UnityPackageImporter.Models
         
         UnityProjectImporter unityProjectImporter { get; set; }
 
+        ProgressBarInterface progressIndicator { get; set; }
 
         Slot CurrentStructureRootSlot { get; set; }
         public Slot allimportsroot { get; set; }

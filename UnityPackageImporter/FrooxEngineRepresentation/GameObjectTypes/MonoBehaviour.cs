@@ -8,7 +8,7 @@ using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {
-    public class MonoBehavior : IUnityObject
+    public class MonoBehaviour : IUnityObject
     {
         public ulong id { get; set; }
         public bool instanciated { get; set; }

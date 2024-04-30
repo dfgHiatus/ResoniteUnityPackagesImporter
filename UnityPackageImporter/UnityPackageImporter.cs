@@ -2,10 +2,12 @@
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
+using Leap.Unity;
 using ResoniteModLoader;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Policy;
 using System.Threading.Tasks;
 using UnityPackageImporter.Extractor;
 
@@ -22,6 +24,7 @@ public class UnityPackageImporter : ResoniteMod
     internal const string UNITY_PREFAB_EXTENSION = ".prefab";
     internal const string UNITY_SCENE_EXTENSION = ".unity";
     internal const string UNITY_META_EXTENSION = ".meta";
+    internal static readonly HashSet<string> UNITY_PACKAGE_EXTENSIONS = new() { "unitypackage" }; //must not have a "." in the name anywhere!!- @989onan
 
     internal static ModConfiguration Config;
     internal static string cachePath = Path.Combine(
@@ -68,6 +71,7 @@ public class UnityPackageImporter : ResoniteMod
         new Harmony("net.dfgHiatus.UnityPackageImporter").PatchAll();
         Config = GetConfiguration();
         Directory.CreateDirectory(cachePath);
+        Engine.Current.RunPostInit(AssetPatch); //patch unity packages in
     }
 
     public static string[] DecomposeUnityPackage(string file)
@@ -111,31 +115,134 @@ public class UnityPackageImporter : ResoniteMod
         return dirsToImport.ToArray();
     }
 
-    /* 
-    Maybe the importer could be made smarter to detect a Unity project with just the prefab's PC path as reference? Then use all of those files to find the dependencies I guess?
-    Though, this is fine for now, since the package might have all the dependencies (sometimes)
-    If the package doesn't, we just skip those files. Later, a unity project dependency finder should be implemented. So use a way to see the prefab is in a unity project and act from there.
-    */
-    [HarmonyPatch(typeof(UniversalImporter), "Import", typeof(AssetClass), typeof(IEnumerable<string>),
-        typeof(World), typeof(float3), typeof(floatQ), typeof(bool))]
+    //patch unity packages into file metadata stuff so we can use them
+    private static void AssetPatch()
+    {
+        var aExt = Traverse.Create(typeof(AssetHelper)).Field<Dictionary<AssetClass, List<string>>>("associatedExtensions");
+        foreach(string hash in UNITY_PACKAGE_EXTENSIONS)
+        {
+            aExt.Value[AssetClass.Model].Add(hash);
+        }
+        
+    }
+
+    private static async Task scanfiles(List<string> hasUnityPackage, Slot slot, World world)
+    {
+
+
+        List<Task> imports = new List<Task>();
+        await default(ToBackground);
+        foreach (string unitypackage in hasUnityPackage)
+        {
+            List<string> scanthesefiles = new List<string>(DecomposeUnityPackage(unitypackage));
+
+
+
+            Msg("CALLING FindPrefabsAndMetas");
+            List<string> notprefabsandmetas = (await FindPrefabsAndMetas(scanthesefiles, slot, imports, world)).ToList();
+            if (Config.GetValue(dumpPackageContents))
+            {
+                if (Config.GetValue(ImportPrefab))
+                {
+                    //get all files that don't have metas
+                    BatchFolderImporter.BatchImport(slot, scanthesefiles.FindAll(i => !Path.GetExtension(i).ToLower().Equals(UNITY_META_EXTENSION)), Config.GetValue(importAsRawFiles));
+                }
+                else
+                {
+                    //bring in no prefabs or metas
+                    BatchFolderImporter.BatchImport(slot, notprefabsandmetas, Config.GetValue(importAsRawFiles));
+                }
+            }
+
+
+        }
+
+        await default(ToWorld);
+        await Task.WhenAll(imports);
+        await default(ToBackground);
+        Msg("FINISHED ALL IMPORTS AND DONE WITH ALL TASKS!!");
+    }
+
+    private static async Task<IEnumerable<string>> FindPrefabsAndMetas(IEnumerable<string> files, Slot importSlotContainment, List<Task> imports, World world)
+    {
+        /*DebugMSG*/
+        Msg("Start Finding Prefabs and Metas");
+        //remove the meta files from the rest of the code later on in the return statements, since we don't want to let the importer bring in fifty bajillion meta files...
+        List<string> ListOfNotMetasAndPrefabs = new List<string>();
+        foreach (var file in files)
+        {
+            var ending = Path.GetExtension(file).ToLower();
+            if (!(ending.Equals(UNITY_PREFAB_EXTENSION) || ending.Equals(UNITY_META_EXTENSION) || ending.Equals(UNITY_SCENE_EXTENSION)))
+            {
+                ListOfNotMetasAndPrefabs.Add(file);
+            }
+        }
+
+
+        Dictionary<string, string> AssetIDDict = new Dictionary<string, string>();
+        Dictionary<string, string> ListOfPrefabs = new Dictionary<string, string>();
+        Dictionary<string, string> ListOfMetas = new Dictionary<string, string>();
+        Dictionary<string, string> ListOfUnityScenes = new Dictionary<string, string>();
+        //first we iterate over every file to find metas and prefabs
+
+        //we make a dictionary that associates the GUID of unity files with their paths. The files given to us are in a cache, with the directories already structured properly and the names fixed.
+        // all we do is read the meta file and steal the GUID from there to get our identifiers in the Prefabs
+        foreach (var file in files)
+        {
+            //UnityPackageImporter.Msg("A file being imported is \""+file+"\"");
+            var ending = Path.GetExtension(file).ToLower();
+
+            switch (ending)
+            {
+                case UNITY_META_EXTENSION:
+                    string filename = file.Substring(0, file.Length - Path.GetExtension(file).Length); //since every meta is filename + extension + ".meta" we can cut off the extension and have the original file name and path.
+                    string fileGUID = File.ReadLines(file).ToArray()[1].Split(':')[1].Trim(); // the GUID is on the first line in the file (not 0th) after a colon and space, so trim it to get id.
+                    AssetIDDict.Add(fileGUID, filename);
+                    if (Path.GetExtension(filename).ToLower() == UNITY_PREFAB_EXTENSION)//if our meta coorisponds to a prefab
+                    {
+                        ListOfPrefabs.Add(fileGUID, filename);
+                    }
+                    if (Path.GetExtension(filename).ToLower() == UNITY_SCENE_EXTENSION)//if our meta coorisponds to a scene
+                    {
+                        ListOfUnityScenes.Add(fileGUID, filename);
+                    }
+                    ListOfMetas.Add(fileGUID, file);
+                    break;
+            }
+        }
+        Msg("Creating importer object");
+
+        if (Config.GetValue(ImportPrefab))
+        {
+            await default(ToWorld);
+            imports.Add(new UnityProjectImporter(files, AssetIDDict, ListOfPrefabs, ListOfMetas, ListOfUnityScenes, importSlotContainment, world.AssetsSlot.AddSlot("UnityPackageImport - Assets"), world).startImports());
+            await default(ToBackground);
+        }
+
+
+        Msg("end Finding Prefabs and Metas");
+        return ListOfNotMetasAndPrefabs.ToArray();
+    }
+
+
+    [HarmonyPatch(typeof(UniversalImporter),
+        "ImportTask",
+        typeof(AssetClass),
+        typeof(IEnumerable<string>),
+        typeof(World),
+        typeof(float3),
+        typeof(floatQ),
+        typeof(float3),
+        typeof(bool))]
     public partial class UniversalImporterPatch
     {
-        
-
-
-        public static bool Prefix(ref IEnumerable<string> files)
+        public static bool Prefix(ref IEnumerable<string> files, ref World world)
         {
 
             List<string> hasUnityPackage = new List<string>();
             List<string> notUnityPackage = new List<string>();
 
-
-
-
-            Msg("Start import of unity packages.");
-            
-
-
+            Msg("Run UnityPackageImporter patch.");
             foreach (var file in files)
             {
                 if (Path.GetExtension(file).ToLower() == UNITY_PACKAGE_EXTENSION)
@@ -143,12 +250,15 @@ public class UnityPackageImporter : ResoniteMod
                 else
                     notUnityPackage.Add(file);
             }
-            if(hasUnityPackage.Count > 0)
+
+            World curworld = world.RootSlot.World;
+            if (hasUnityPackage.Count > 0)
             {
-                var slot = Engine.Current.WorldManager.FocusedWorld.AddSlot("Unity Package Import");
+                Msg("Start import of unity packages.");
+                var slot = world.AddSlot("Unity Package Import");
                 slot.GlobalPosition = new float3(0, 0, 0); //we want scenes to position themselves at 0,0,0. There is an edge case where the thing this is parented under would be moving, but that's just a skill issue on the user's part. - @989onan
-                slot.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root. - @989onan
-                slot.StartGlobalTask(async () => await scanfiles(hasUnityPackage, slot));
+                slot.SetParent(world.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root. - @989onan
+                slot.StartGlobalTask(async () => await scanfiles(hasUnityPackage, slot, curworld));
                 
             }
 
@@ -157,113 +267,16 @@ public class UnityPackageImporter : ResoniteMod
             //idk if we really need this if the stuff above is going to eventually just import prefabs and textures already set up... - @989onan
 
 
+            files = notUnityPackage;
             
-            if (hasUnityPackage.Count <= 0) return true;
-
-            var slotbatch = Engine.Current.WorldManager.FocusedWorld.AddSlot("Batch Import", false);
-            slotbatch.PositionInFrontOfUser(null, null, 0.7f, null, false, false, true);
-            slotbatch.SetParent(Engine.Current.WorldManager.FocusedWorld.LocalUserSpace, true); //let user managers not freak out that we're doing stuff in root.
-            BatchFolderImporter.BatchImport(slotbatch, notUnityPackage, Config.GetValue(importAsRawFiles));
-            
-
-            return false;
-        }
-
-        private static async Task scanfiles(List<string> hasUnityPackage, Slot slot)
-        {
-
-
-            List<Task> imports = new List<Task>();
-            await default(ToBackground);
-            foreach(string unitypackage in hasUnityPackage)
+            if(notUnityPackage.Count > 0)
             {
-                List<string> scanthesefiles = new List<string>(DecomposeUnityPackage(unitypackage));
-
-
-
-                Msg("CALLING FindPrefabsAndMetas");
-                List<string> notprefabsandmetas = (await FindPrefabsAndMetas(scanthesefiles, slot, imports)).ToList();
-                if (Config.GetValue(dumpPackageContents))
-                {
-                    if (Config.GetValue(ImportPrefab))
-                    {
-                        //get all files that don't have metas
-                        BatchFolderImporter.BatchImport(slot, scanthesefiles.FindAll(i => !Path.GetExtension(i).ToLower().Equals(UNITY_META_EXTENSION)), Config.GetValue(importAsRawFiles));
-                    }
-                    else
-                    {
-                        //bring in no prefabs or metas
-                        BatchFolderImporter.BatchImport(slot, notprefabsandmetas, Config.GetValue(importAsRawFiles));
-                    }
-                }
-                
-
+                return true;
             }
-
-            await default(ToWorld);
-            await Task.WhenAll(imports);
-            await default(ToBackground);
-            Msg("FINISHED ALL IMPORTS AND DONE WITH ALL TASKS!!");
-        }
-
-        private static async Task<IEnumerable<string>> FindPrefabsAndMetas(IEnumerable<string> files, Slot importSlotContainment, List<Task> imports)
-        {
-            /*DebugMSG*/Msg("Start Finding Prefabs and Metas");
-            //remove the meta files from the rest of the code later on in the return statements, since we don't want to let the importer bring in fifty bajillion meta files...
-            List<string> ListOfNotMetasAndPrefabs = new List<string>();
-            foreach (var file in files)
-            {
-                var ending = Path.GetExtension(file).ToLower();
-                if (!(ending.Equals(UNITY_PREFAB_EXTENSION) || ending.Equals(UNITY_META_EXTENSION) || ending.Equals(UNITY_SCENE_EXTENSION)))
-                {
-                    ListOfNotMetasAndPrefabs.Add(file);
-                }
-            }
-
-
-            Dictionary<string, string> AssetIDDict = new Dictionary<string, string>();
-            Dictionary<string, string> ListOfPrefabs = new Dictionary<string, string>();
-            Dictionary<string, string> ListOfMetas = new Dictionary<string, string>();
-            Dictionary<string, string> ListOfUnityScenes = new Dictionary<string, string>();
-            //first we iterate over every file to find metas and prefabs
-
-            //we make a dictionary that associates the GUID of unity files with their paths. The files given to us are in a cache, with the directories already structured properly and the names fixed.
-            // all we do is read the meta file and steal the GUID from there to get our identifiers in the Prefabs
-            foreach (var file in files)
-            {
-                //UnityPackageImporter.Msg("A file being imported is \""+file+"\"");
-                var ending = Path.GetExtension(file).ToLower();
-                
-                switch (ending)
-                {
-                    case UNITY_META_EXTENSION:
-                        string filename = file.Substring(0, file.Length - Path.GetExtension(file).Length); //since every meta is filename + extension + ".meta" we can cut off the extension and have the original file name and path.
-                        string fileGUID = File.ReadLines(file).ToArray()[1].Split(':')[1].Trim(); // the GUID is on the first line in the file (not 0th) after a colon and space, so trim it to get id.
-                        AssetIDDict.Add(fileGUID, filename);
-                        if (Path.GetExtension(filename).ToLower() == UNITY_PREFAB_EXTENSION)//if our meta coorisponds to a prefab
-                        {
-                            ListOfPrefabs.Add(fileGUID, filename);
-                        }
-                        if (Path.GetExtension(filename).ToLower() == UNITY_SCENE_EXTENSION)//if our meta coorisponds to a scene
-                        {
-                            ListOfUnityScenes.Add(fileGUID, filename);
-                        }
-                        ListOfMetas.Add(fileGUID, file);
-                        break;
-                }
-            }
-            Msg("Creating importer object");
-            
-            if (Config.GetValue(ImportPrefab))
-            {
-                await default(ToWorld);
-                imports.Add(new UnityProjectImporter(files, AssetIDDict, ListOfPrefabs, ListOfMetas, ListOfUnityScenes, importSlotContainment, Engine.Current.WorldManager.FocusedWorld.AssetsSlot.AddSlot("UnityPackageImport - Assets")).startImports());
-                await default(ToBackground);
+            else{
+                return false; //we have only unity packages, so don't run the rest and make some random model import dialogue
             }
             
-            
-            Msg("end Finding Prefabs and Metas");
-            return ListOfNotMetasAndPrefabs.ToArray(); 
         }
     }
 

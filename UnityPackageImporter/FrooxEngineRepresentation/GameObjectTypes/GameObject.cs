@@ -28,11 +28,16 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
             {
                 
                 await default(ToWorld);
-                if(m_CorrespondingSourceObject.guid == null)
+                if(m_CorrespondingSourceObject.guid == null && frooxEngineSlot == null)
                 {
-                    frooxEngineSlot = Engine.Current.WorldManager.FocusedWorld.AddSlot(this.m_Name);
+                    frooxEngineSlot = importer.unityProjectImporter.world.AddSlot(this.m_Name);
                     frooxEngineSlot.SetParent(importer.CurrentStructureRootSlot, true); //let user managers not freak out that we're doing stuff in root.
                     frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
+                }
+                else if(frooxEngineSlot != null) //if being instanciated through prefab import while still in prefab hashes. Since it will have modifications done to it but have an in world object still.
+                {
+                    frooxEngineSlot.ActiveSelf = m_IsActive == 1 ? true : false;
+                    frooxEngineSlot.Name = this.m_Name;
                 }
                 else
                 {
@@ -44,7 +49,13 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
                         await default(ToBackground);
                         if (prefab.PrefabHashes.TryGetValue(m_CorrespondingSourceObject, out IUnityObject existingobject))
                         {
-                            this.frooxEngineSlot = (existingobject as GameObject).frooxEngineSlot;
+                            GameObject existing = (existingobject as GameObject);
+                            await default(ToWorld);
+                            this.m_Name = existing.m_Name;
+                            this.frooxEngineSlot = existing.frooxEngineSlot;
+                            this.frooxEngineSlot.Name = this.m_Name;
+                            this.frooxEngineSlot.ActiveSelf = existing.m_IsActive == 1;
+                            await default(ToBackground);
                         }
 
 
