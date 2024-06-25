@@ -1,17 +1,10 @@
-﻿using Elements.Assets;
+﻿using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
 using FrooxEngine.Store;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Security.Policy;
-using System.Threading.Tasks;
-using UnityPackageImporter.FrooxEngineRepresentation;
-using static FrooxEngine.ModelImporter;
 
 namespace UnityPackageImporter.Models
 {

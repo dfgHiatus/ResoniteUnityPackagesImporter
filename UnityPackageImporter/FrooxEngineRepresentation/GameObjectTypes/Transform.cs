@@ -1,12 +1,10 @@
-﻿using Elements.Core;
-using FrooxEngine;
-using Leap.Unity;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using Elements.Core;
+using FrooxEngine;
 using UnityPackageImporter.Models;
-using static FrooxEngine.FinalIK.VRIKAvatar;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
 {

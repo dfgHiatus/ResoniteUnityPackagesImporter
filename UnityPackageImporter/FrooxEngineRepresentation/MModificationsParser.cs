@@ -1,25 +1,14 @@
-﻿using Elements.Core;
-using HarmonyLib;
-using Leap.Unity.Query;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Reflection; 
-using System.Text;
-using System.Threading.Tasks;
-using UnityPackageImporter.Models;
-using static HarmonyLib.AccessTools;
+using System.Reflection;
+using Elements.Core;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation
 {
     public class MModificationsParser
     {
-
-
-
-
         public static bool ParseModifcation(IUnityObject targetobj, ModsPrefab mod)
         {
             Type targettype = targetobj.GetType();

@@ -2,7 +2,6 @@
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
-using Leap.Unity;
 using ResoniteModLoader;
 using System.Collections.Generic;
 using System.IO;

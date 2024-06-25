@@ -1,11 +1,8 @@
-﻿using Elements.Core;
-using FrooxEngine;
-using Leap.Unity;
-using Microsoft.Cci;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using FrooxEngine;
 using UnityPackageImporter.Models;
 
 namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
