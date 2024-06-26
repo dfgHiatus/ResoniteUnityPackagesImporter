@@ -15,8 +15,7 @@ public class UnityPackageExtractor
         // Fun fact! Unity packages are actually just tar.gz files with a different extension
         var a = File.OpenRead(input);
         var b = new GZipStream(a, CompressionMode.Decompress);
-        List<string> filenames = new List<string>();
-
+        var filenames = new List<string>();
 
         try
         {
@@ -56,7 +55,7 @@ public class UnityPackageExtractor
 
                 // Now we can get the path and name of the asset. 
                 // @989onan - Improved the temporary directory to respect file paths. So if the asset would go under Assets/mymodel/images/filename.png it would go there but prepended by outputDir.
-                // instead of a giant bucket of files in one folder. this will avoid file name conflicts. Probably while the file exists checks are here to begin with because of
+                // Instead of a giant bucket of files in one folder. this will avoid file name conflicts. Probably while the file exists checks are here to begin with because of
                 // That and user possibly having previous imports of the same package with the same contents according to the MD5 hash 
                 var outPath = Path.Combine(outputDir, Path.GetDirectoryName(pathName));
                 if (!Directory.Exists(outPath))

@@ -9,22 +9,18 @@ namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
 
 public class MeshCollider: IUnityObject
 {
-    #region MeshCollider Fields
     public SourceObj m_Mesh { get; set; }
     public Dictionary<string, ulong> m_GameObject;
     public bool instanciated { get; set; }
-
     public ulong m_IsTrigger { get; set; }
     public ulong m_Enabled { get; set; }
     public ulong m_Convex { get; set; }
-    #endregion
-
     public ulong m_GameObjectID { get; set; }
     public ulong id { get; set; }
     public SourceObj m_CorrespondingSourceObject { get; set; }
     public Dictionary<string, ulong> m_PrefabInstance { get; set; }
 
-    public async Task instanciateAsync(IUnityStructureImporter importer)
+    public async Task InstanciateAsync(IUnityStructureImporter importer)
     {
         if (instanciated) return;
 
@@ -47,8 +43,6 @@ public class MeshCollider: IUnityObject
             UnityPackageImporter.Warn(e.Message,e.StackTrace);
         }
 
-        
-
         instanciated = true;
     }
 
@@ -61,7 +55,7 @@ public class MeshCollider: IUnityObject
 
             var parentobj = foundobject as GameObject;
             await default(ToWorld);
-            await parentobj.instanciateAsync(importer);
+            await parentobj.InstanciateAsync(importer);
             await default(ToBackground);
 
             // Heh the dictionary stuff in yamls are weird

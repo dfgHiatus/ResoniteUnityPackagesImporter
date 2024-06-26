@@ -1,37 +1,28 @@
-﻿using FrooxEngine;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using FrooxEngine;
 using UnityPackageImporter.Models;
 
-namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes
+namespace UnityPackageImporter.FrooxEngineRepresentation.GameObjectTypes;
+
+public class MonoBehaviour : IUnityObject
 {
-    public class MonoBehaviour : IUnityObject
+    public ulong id { get; set; }
+    public bool instanciated { get; set; }
+    public Dictionary<string, ulong> m_GameObject { get; set; }
+    public SourceObj m_CorrespondingSourceObject { get; set; }
+    public Dictionary<string, ulong> m_PrefabInstance { get; set; }
+
+    public async Task InstanciateAsync(IUnityStructureImporter importer)
     {
-        public ulong id { get; set; }
-        public bool instanciated { get; set; }
+        if (instanciated) return;
 
-        public Dictionary<string, ulong> m_GameObject { get; set; }
-        public SourceObj m_CorrespondingSourceObject { get; set; }
-        public Dictionary<string, ulong> m_PrefabInstance { get; set; }
-
-        public async Task instanciateAsync(IUnityStructureImporter importer)
+        if (importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject slotOnity))
         {
-            if (instanciated) return;
-
-            if (importer.existingIUnityObjects.TryGetValue(m_GameObject["fileID"], out IUnityObject slotunity))
-            {
-                await default(ToWorld);
-                await slotunity.instanciateAsync(importer);
-                await default(ToBackground);
-                Slot componenttarget = (slotunity as GameObject).frooxEngineSlot;
-            }
-            else
-            {
-
-            }
+            await default(ToWorld);
+            await slotOnity.InstanciateAsync(importer);
+            await default(ToBackground);
+            Slot componenttarget = (slotOnity as GameObject).frooxEngineSlot;
         }
     }
 }
