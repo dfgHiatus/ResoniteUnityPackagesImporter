@@ -2,12 +2,10 @@
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
-using Leap.Unity;
 using ResoniteModLoader;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Policy;
 using System.Threading.Tasks;
 using UnityPackageImporter.Extractor;
 
@@ -17,7 +15,7 @@ public class UnityPackageImporter : ResoniteMod
 {
     public override string Name => "UnityPackageImporter";
     public override string Author => "dfgHiatus, eia485, delta, Frozenreflex, benaclejames, 989onan";
-    public override string Version => "2.2.0";
+    public override string Version => "2.3.0";
     public override string Link => "https://github.com/dfgHiatus/ResoniteUnityPackagesImporter";
 
     internal const string UNITY_PACKAGE_EXTENSION = ".unitypackage";
@@ -70,7 +68,7 @@ public class UnityPackageImporter : ResoniteMod
         new Harmony("net.dfgHiatus.UnityPackageImporter").PatchAll();
         Config = GetConfiguration();
         Directory.CreateDirectory(cachePath);
-        Engine.Current.RunPostInit(AssetPatch);
+        Engine.Current.RunPostInit(() => AssetPatch("unitypackage"));
     }
 
     public static string[] DecomposeUnityPackage(string file)
@@ -122,10 +120,60 @@ public class UnityPackageImporter : ResoniteMod
         return dirsToImport.ToArray();
     }
 
-    private static void AssetPatch()
+    private void AssetPatch(string extension)
     {
-        var aExt = Traverse.Create(typeof(AssetHelper)).Field<Dictionary<AssetClass, List<string>>>("associatedExtensions");
-        aExt.Value[AssetClass.Model].Add("unitypackage"); // Must not have a "." in the name anywhere!!- @989onan
+        // Revised implementation using reflection to handle API changes
+        // same fix as the svg import mod.
+        try
+        {
+            Debug($"Attempting to add {extension} support to import system");
+
+            // Get ImportExtension type via reflection since it's now a struct inside AssetHelper
+            var assHelperType = typeof(AssetHelper);
+            var importExtType = assHelperType.GetNestedType("ImportExtension",
+                System.Reflection.BindingFlags.NonPublic);
+
+            if (importExtType == null)
+            {
+                Error("ImportExtension type not found. This mod is toast.");
+                return;
+            }
+
+            // Create an ImportExtension instance with reflection
+            // Constructor args: (string ext, bool autoImport)
+            var importExt = System.Activator.CreateInstance(importExtType,
+                new object[] { extension, true });
+
+            // Get the associatedExtensions field via reflection
+            var extensionsField = assHelperType.GetField("associatedExtensions",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+            if (extensionsField == null)
+            {
+                Error("Could not find associatedExtensions field");
+                return;
+            }
+
+            // Get the dictionary and add our extension to the Special asset class
+            var extensions = extensionsField.GetValue(null);
+            var dictType = extensions.GetType();
+            var specialValue = dictType.GetMethod("get_Item").Invoke(extensions, new object[] { AssetClass.Special });
+
+            if (specialValue == null)
+            {
+                Error("Couldn't get Special asset class list");
+                return;
+            }
+
+            // Add our ImportExtension to the list
+            specialValue.GetType().GetMethod("Add").Invoke(specialValue, new[] { importExt });
+
+            Debug("{extension} import extension added successfully");
+        }
+        catch (System.Exception ex)
+        {
+            Error($"Failed to add {extension} to special import formats: {ex}");
+        }
     }
 
     private static async Task Scanfiles(List<string> hasUnityPackage, Slot slot, World world)
